@@ -21,7 +21,7 @@ class ServerInstructions {
       '',
       'This MCP server exposes local coding tools for the current workspace.',
       'For every tools/call request, include `purpose`: a concise user-visible summary (max 80 characters) of what the immediate call will obtain, verify, or change. `purpose` is used by the desktop app for activity UI and is never forwarded to downstream MCP tools.',
-      'Mandatory end-of-round rule: if you use any tool from this MCP server while handling the current user request, you MUST call `summary` exactly once before sending your final response to the user. The summary must be one short user-facing paragraph only: no bullets, numbered lists, detail lists, or line breaks. File changes are tracked automatically, so do not repeat them unless essential to the outcome. Never finish an MCP-assisted request without calling `summary`.',
+      'Mandatory terminal-summary rule: one round means one user message through one final assistant response. If you use any tool from this MCP server during that round, call `summary` once and only once, after ALL other tool calls are finished and immediately before the final response. `summary` is the terminal marker for the round: never call it for intermediate milestones, individual subtasks, retries, progress updates, or individual Computer Use actions; never call it more than once in the same user turn. After calling `summary`, do not call any other tool from this MCP server in that user turn. If more tool work remains, do not call `summary` yet. The summary must be one short user-facing paragraph only: no bullets, numbered lists, detail lists, or line breaks. File changes are tracked automatically, so do not repeat them unless essential to the outcome.',
     ];
 
     final agents = _resolveAgents(projectRoot: projectRoot, mode: agentsMode, custom: customAgents);
@@ -56,7 +56,11 @@ class ServerInstructions {
         ..add('')
         ..add('Downstream MCP servers (discover with mcp_tools, invoke with mcp_call):');
       for (final client in downstream) {
-        sections.add('- ${client.name} [${client.state.name}] ${client.tools.length} tools');
+        final description = client.description?.trim();
+        sections.add(
+          '- ${client.name} [${client.state.name}] ${client.tools.length} tools'
+          '${description == null || description.isEmpty ? '' : ': $description'}',
+        );
       }
     }
 
@@ -87,8 +91,8 @@ class ServerInstructions {
     return _loadRootAgents(projectRoot);
   }
 
-  /// For a workspace-scoped MCP endpoint the project root is the agent cwd.
-  /// Prefer AGENTS.override.md over AGENTS.md, matching Codex precedence at one directory level.
+  /// 工作区级 MCP 端点把项目根目录视为 Agent 的当前工作目录。
+  /// 同一目录下优先读取 AGENTS.override.md，其次 AGENTS.md，与 Codex 的优先级一致。
   static String? _loadRootAgents(String projectRoot) {
     for (final name in const ['AGENTS.override.md', 'AGENTS.md']) {
       final file = File(p.join(projectRoot, name));
@@ -111,7 +115,7 @@ class ServerInstructions {
       '- write_stdin — poll a running command or send stdin/Ctrl+C using session_id.',
       '- skills_list / skill_read — discover dynamic local Skills and load SKILL.md on demand.',
       '- mcp_tools / mcp_call — discover and invoke tools from enabled downstream MCP servers.',
-      '- summary — end the current round with one concise user-facing paragraph and notify the desktop app.',
+      '- summary — terminal tool for the current user turn; call once only after all other work is complete, then send the final response.',
     ];
   }
 
@@ -124,6 +128,7 @@ class ServerInstructions {
       '4. Use exec_command for tests, builds, git, package managers, adb, and other installed CLI tools. Do not edit source/text files through shell redirection or Get-Content/Set-Content.',
       '5. If exec_command returns session_id, continue with write_stdin; send \\u0003 to stop an interactive/long-running command when appropriate.',
       '6. Use skill_read only when a listed Skill is relevant; use mcp_tools before mcp_call when downstream capabilities are unknown.',
+      '7. When all work for the current user message is complete, call summary exactly once as the final MCP tool call. Do not call summary earlier, do not call it after each subtask, and do not call any MCP tool after it in the same user turn.',
     ];
   }
 }

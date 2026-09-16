@@ -56,12 +56,17 @@ class CapabilityRuntime extends ChangeNotifier {
 
   Future<void> reconnect(String name) async {
     final client = _clients[name];
-    if (client == null) return;
+    if (client == null) {
+      throw StateError('下游 MCP $name 未启用或不存在');
+    }
     await client.close();
     final fresh = DownstreamClient(client.entry);
     _clients[name] = fresh;
     notifyListeners();
     await _connectOne(fresh);
+    if (!fresh.isConnected) {
+      throw Exception(fresh.lastError ?? '下游 MCP $name 重新连接失败');
+    }
   }
 
   Future<void> reconnectAll() async {

@@ -32,13 +32,17 @@ class DownstreamMcpEntry extends HiveObject {
     this.toolTimeoutMs,
   });
 
+  static const builtinComputerUseName = 'computer-use';
+
   bool get isCodexImport => source == 'codex_import';
+  bool get isBuiltin => source == 'builtin';
 
   Map<String, dynamic> get transport => jsonDecode(transportJson) as Map<String, dynamic>;
 
+  bool get isBuiltinComputerUse => isBuiltin && transport['builtin'] == 'computer-use';
   bool get isStdio => transport.containsKey('command');
-
   bool get isUrl => transport.containsKey('url');
+  String get displayName => isBuiltinComputerUse ? 'Computer Use' : name;
 
   String? get command => transport['command'] as String?;
 
@@ -65,12 +69,24 @@ class DownstreamMcpEntry extends HiveObject {
   }
 
   String get transportSummary {
+    if (isBuiltinComputerUse) return 'builtin: Codex Computer Use';
     if (isStdio) {
       final cmd = command ?? '';
       return 'stdio: $cmd';
     }
     if (isUrl) return 'url: $url';
     return 'unknown';
+  }
+
+  factory DownstreamMcpEntry.builtinComputerUse({required bool enabled}) {
+    return DownstreamMcpEntry(
+      name: builtinComputerUseName,
+      transportJson: jsonEncode({'builtin': 'computer-use'}),
+      enabled: enabled,
+      source: 'builtin',
+      startupTimeoutMs: 20000,
+      toolTimeoutMs: 60000,
+    );
   }
 
   static String buildStdioJson({

@@ -36,6 +36,10 @@ class GatewayTools {
         buffer.writeln(
           '=== ${client.name} [${client.state.name}] ${client.tools.length} tools ===',
         );
+        final description = client.description?.trim();
+        if (description != null && description.isNotEmpty) {
+          buffer.writeln('  $description');
+        }
         for (final tool in client.tools) {
           buffer.writeln('  ${tool['name']}: ${Fmt.ellipsis('${tool['description'] ?? ''}', 160)}');
         }
@@ -49,8 +53,8 @@ class GatewayTools {
       final server = args.requireText('server');
       var client = requireClient(server);
 
-      // Connection management is an implementation detail. Retry one reconnect internally
-      // instead of exposing mcp_reconnect to the model.
+      // 连接管理属于内部实现细节；断线时内部自动重连一次，
+      // 不额外向模型暴露 mcp_reconnect 工具。
       if (!client.isConnected) {
         await capabilities.reconnect(server);
         client = requireClient(server);
@@ -63,8 +67,33 @@ class GatewayTools {
 
       final toolName = args.requireText('tool');
       final result = await client.callTool(toolName, args.mapOr('arguments'));
-      return ToolResult.text(_renderContent(result), structured: result);
+      return _toToolResult(result);
     });
+  }
+
+  /// 保留下游 MCP 的 image/resource 等原生 content；纯文本结果仍按原逻辑渲染。
+  static ToolResult _toToolResult(Map<String, dynamic> result) {
+    final contents = result['content'] ?? result['contents'];
+    if (contents is List) {
+      final normalized = contents
+          .whereType<Map>()
+          .map((item) => item.cast<String, dynamic>())
+          .toList();
+      final hasRichContent = normalized.any((item) => item['type'] != 'text');
+      final rendered = _renderContent(result);
+      final structuredRaw = result['structuredContent'];
+      final structured = structuredRaw is Map
+          ? <String, dynamic>{...structuredRaw.cast<String, dynamic>(), 'text': rendered}
+          : <String, dynamic>{'text': rendered};
+      if (hasRichContent && normalized.isNotEmpty) {
+        return ToolResult(
+          content: normalized,
+          structuredContent: structured,
+          isError: result['isError'] == true,
+        );
+      }
+    }
+    return ToolResult.text(_renderContent(result), structured: result);
   }
 
   /// 下游返回的 content 数组里抽出可读文本，抽不到就回落到 JSON。
@@ -78,6 +107,23 @@ class GatewayTools {
       final text = item['text'];
       if (text is String) {
         buffer.writeln(text);
+        continue;
+      }
+      final type = '${item['type'] ?? ''}';
+      if (type == 'image' || type == 'audio') {
+        final mimeType = '${item['mimeType'] ?? ''}'.trim();
+        buffer.writeln(mimeType.isEmpty ? '[$type]' : '[$type: $mimeType]');
+        continue;
+      }
+      if (type == 'resource') {
+        final resource = item['resource'];
+        if (resource is Map && resource['text'] is String) {
+          buffer.writeln(resource['text']);
+        } else if (resource is Map && '${resource['uri'] ?? ''}'.trim().isNotEmpty) {
+          buffer.writeln('[resource: ${resource['uri']}]');
+        } else {
+          buffer.writeln('[resource]');
+        }
         continue;
       }
       buffer.writeln(Fmt.json(item));

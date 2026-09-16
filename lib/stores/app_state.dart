@@ -114,7 +114,7 @@ class AppState extends ChangeNotifier {
     mcpServer.setWidgetDomain(_config.widgetOrigin);
     _workspaces = ConfigStore.getWorkspaces();
     _skills = ConfigStore.getSkills();
-    _mcps = ConfigStore.getMcps();
+    _mcps = _composeMcps(ConfigStore.getMcps());
 
     capabilities.syncSkills(_skills);
     capabilities.addListener(notifyListeners);
@@ -251,9 +251,14 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> saveGlobalConfig(GlobalConfig config) async {
+    final computerUseChanged = config.computerUseEnabled != _config.computerUseEnabled;
     _config = config;
     mcpServer.setWidgetDomain(_config.widgetOrigin);
     await ConfigStore.saveGlobalConfig(config);
+    if (computerUseChanged) {
+      _mcps = _composeMcps(_mcps.where((item) => !item.isBuiltin).toList());
+      await capabilities.syncMcps(_mcps);
+    }
     notifyListeners();
   }
 
@@ -365,19 +370,25 @@ class AppState extends ChangeNotifier {
   }
 
   Future<void> saveMcp(DownstreamMcpEntry mcp) async {
+    if (mcp.isBuiltin || mcp.name == DownstreamMcpEntry.builtinComputerUseName) {
+      throw StateError('内置 MCP 不可修改');
+    }
     final index = _mcps.indexWhere((item) => item.name == mcp.name);
     if (index >= 0) {
       _mcps = List.of(_mcps)..[index] = mcp;
     } else {
       _mcps = [..._mcps, mcp];
     }
-    _mcps.sort((left, right) => left.name.compareTo(right.name));
+    _sortMcps();
     await ConfigStore.saveMcp(mcp);
     notifyListeners();
     await capabilities.syncMcps(_mcps);
   }
 
   Future<void> deleteMcp(String name) async {
+    if (name == DownstreamMcpEntry.builtinComputerUseName) {
+      throw StateError('内置 MCP 不可删除');
+    }
     _mcps = _mcps.where((item) => item.name != name).toList();
     await ConfigStore.deleteMcp(name);
     notifyListeners();
@@ -387,6 +398,10 @@ class AppState extends ChangeNotifier {
   Future<void> toggleMcp(String name, bool enabled) async {
     final mcp = _mcps.firstWhereOrNull((item) => item.name == name);
     if (mcp == null) return;
+    if (mcp.isBuiltinComputerUse) {
+      await saveGlobalConfig(_config.copyWith(computerUseEnabled: enabled));
+      return;
+    }
     await saveMcp(
       DownstreamMcpEntry(
         name: mcp.name,
@@ -401,6 +416,24 @@ class AppState extends ChangeNotifier {
 
   Future<void> reconnectMcp(String name) async {
     await capabilities.reconnect(name);
+  }
+
+  List<DownstreamMcpEntry> _composeMcps(List<DownstreamMcpEntry> persisted) {
+    final entries = persisted
+        .where((item) => item.name != DownstreamMcpEntry.builtinComputerUseName && !item.isBuiltin)
+        .toList();
+    entries.add(DownstreamMcpEntry.builtinComputerUse(enabled: _config.computerUseEnabled));
+    _sortMcpList(entries);
+    return entries;
+  }
+
+  void _sortMcps() => _sortMcpList(_mcps);
+
+  void _sortMcpList(List<DownstreamMcpEntry> entries) {
+    entries.sort((left, right) {
+      if (left.isBuiltin != right.isBuiltin) return left.isBuiltin ? -1 : 1;
+      return left.name.compareTo(right.name);
+    });
   }
 
   /// 启动本地 HttpServer 并按需拉起长驻 Tunnel

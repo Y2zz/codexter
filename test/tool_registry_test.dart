@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:codexter/mcp/instructions.dart';
 import 'package:codexter/mcp/tools/registry.dart';
 import 'package:codexter/mcp/tools/tool_bundle.dart';
 import 'package:codexter/mcp/tools/tool_context.dart';
@@ -41,6 +42,20 @@ void main() {
     expect(required, containsAll(['purpose', 'path']));
     expect(meta.containsKey('ui'), isFalse);
     expect(meta.containsKey('openai/outputTemplate'), isFalse);
+  });
+
+  test('server instructions make summary a once-only terminal tool', () {
+    final instructions = ServerInstructions.build(
+      projectRoot: r'C:\\test',
+      skills: const [],
+      downstream: const [],
+      toolCount: 1,
+    );
+
+    expect(instructions, contains('one user message through one final assistant response'));
+    expect(instructions, contains('once and only once'));
+    expect(instructions, contains('After calling `summary`, do not call any other tool'));
+    expect(instructions, contains('do not call it after each subtask'));
   });
 
   test('summary is the only tool associated with a UI resource', () {

@@ -4,8 +4,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 const appName = 'Codexter';
 const appId = 'codexter';
 const appLogoAsset = 'assets/brand/logo.png';
-const defaultUpdateManifestUrl =
-    'https://github.com/meesii/codexter/releases/latest/download/latest.json';
+const appGithubRepo = 'meesii/codexter';
+const appGithubUrl = 'https://github.com/$appGithubRepo';
+const defaultUpdateManifestUrl = '$appGithubUrl/releases/latest/download/latest.json';
 const appUpdateManifestUrl = String.fromEnvironment(
   'UPDATE_MANIFEST_URL',
   defaultValue: defaultUpdateManifestUrl,

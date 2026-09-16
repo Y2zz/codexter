@@ -2,7 +2,7 @@ import '../../models/summary_notice.dart';
 import 'registry.dart';
 import 'tool_context.dart';
 
-/// Summarizes the current round and notifies the desktop app that it has ended.
+/// 汇总当前用户轮次，并通知桌面端本轮处理已经结束。
 class SummaryTools {
   const SummaryTools._();
 
@@ -41,8 +41,10 @@ class SummaryTools {
     name: 'summary',
     title: 'Round summary',
     description:
-        'Mandatory end-of-round tool. If you used any tool from this MCP server while handling the current user request, you MUST call `summary` exactly once before sending your final response to the user. '
-        'This marks the end of the current round and lets the desktop app notify the user. Never finish an MCP-assisted request without calling this tool. '
+        'Terminal tool for one user turn. One round means one user message through one final assistant response. '
+        'If you used any tool from this MCP server in that round, call `summary` once and only once, only after every other tool call and subtask is finished, immediately before the final response. '
+        'Do NOT call it for intermediate progress, after individual subtasks, after retries, or after individual Computer Use actions. Do NOT call it twice in the same user turn. '
+        'After calling `summary`, do not call any other tool from this MCP server in that user turn. If more tool work remains, do not call `summary` yet. '
         'The summary must be one short user-facing paragraph only: no bullet points, numbered lists, detail lists, or line breaks.',
     inputSchema: {
       'type': 'object',
@@ -56,7 +58,7 @@ class SummaryTools {
           'type': 'string',
           'maxLength': 600,
           'description':
-              'One concise user-facing paragraph summarizing the result, current state, or reason work stopped. Do not use bullets, numbered lists, detail lists, or line breaks. File changes are tracked separately and should not be repeated unless essential to the outcome.',
+              'Final one-paragraph summary for the entire current user turn, not for an intermediate step or subtask. Call this tool only once, after all other work is complete. Do not use bullets, numbered lists, detail lists, or line breaks. File changes are tracked separately and should not be repeated unless essential to the outcome.',
         },
       },
       'required': ['summary'],

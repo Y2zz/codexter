@@ -2,8 +2,10 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import '../../app_info.dart';
 import '../../stores/app_state.dart';
 import '../theme/app_theme.dart';
+import 'app_atoms.dart';
 import 'app_dialog.dart';
 import 'app_spacing.dart';
+import 'app_toast.dart';
 import 'app_update_dialog.dart';
 
 class AppAboutDialog {
@@ -47,6 +49,11 @@ class AppAboutDialog {
       actions: (dialogContext) => [
         Button(
           style: ButtonStyle.outline(size: ButtonSize.normal),
+          onPressed: () => _openGithub(dialogContext, appState),
+          child: const AppButtonLabel(icon: BootstrapIcons.github, label: 'GitHub'),
+        ),
+        Button(
+          style: ButtonStyle.outline(size: ButtonSize.normal),
           onPressed: () {
             Navigator.of(dialogContext).pop();
             Future<void>.microtask(() {
@@ -64,5 +71,12 @@ class AppAboutDialog {
         ),
       ],
     );
+  }
+
+  static Future<void> _openGithub(BuildContext context, AppState appState) async {
+    final opened = await appState.setupService.openUrl(appGithubUrl);
+    if (!opened && context.mounted) {
+      AppToast.error(context, '打开 GitHub 项目失败');
+    }
   }
 }

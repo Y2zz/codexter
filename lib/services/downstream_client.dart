@@ -4,6 +4,8 @@ import 'dart:io';
 import '../app_info.dart';
 import '../models/downstream_mcp_entry.dart';
 import '../utils/path_guard.dart';
+import 'computer_use_client.dart';
+import 'computer_use_tools.dart';
 
 enum DownstreamState { idle, connecting, connected, failed, closed }
 
@@ -11,7 +13,7 @@ const defaultStartupTimeoutMs = 20000;
 const defaultToolTimeoutMs = 60000;
 const downstreamProtocolVersion = '2025-06-18';
 
-/// 单个下游 MCP 连接，支持 stdio 子进程与 streamable http 两种传输
+/// 单个下游 MCP 连接，支持内置能力、stdio 子进程与 streamable http 传输。
 class DownstreamClient {
   final DownstreamMcpEntry entry;
 
@@ -21,6 +23,7 @@ class DownstreamClient {
   Map<String, dynamic>? serverInfo;
 
   Process? _child;
+  ComputerUseClient? _computerUse;
   HttpClient? _httpClient;
   String? _httpSessionId;
   StreamSubscription<String>? _stdoutSub;
@@ -37,13 +40,36 @@ class DownstreamClient {
 
   int get toolTimeoutMs => entry.toolTimeoutMs ?? defaultToolTimeoutMs;
 
+  String get transportKind {
+    if (entry.isBuiltinComputerUse) return 'builtin';
+    if (entry.isStdio) return 'stdio';
+    if (entry.isUrl) return 'http';
+    return 'unknown';
+  }
+
+  String get targetDescription {
+    if (entry.isBuiltinComputerUse) {
+      return _computerUse?.runtimePaths?.helperPath ?? 'Auto-discover Codex Computer Use runtime';
+    }
+    if (entry.isStdio) return entry.command ?? '';
+    if (entry.isUrl) return entry.url ?? '';
+    return '';
+  }
+
+  String? get description => entry.isBuiltinComputerUse
+      ? computerUseMcpDescription
+      : serverInfo?['description'] as String?;
+
   Map<String, dynamic> toStatusJson() {
     return {
       'name': name,
-      'transport': entry.isStdio ? 'stdio' : 'http',
-      'target': entry.isStdio ? (entry.command ?? '') : (entry.url ?? ''),
+      if (entry.displayName != name) 'displayName': entry.displayName,
+      'transport': transportKind,
+      'target': targetDescription,
       'state': state.name,
       'toolCount': tools.length,
+      if (description != null) 'description': description,
+      if (entry.isBuiltin) 'builtIn': true,
       if (lastError != null) 'error': lastError,
     };
   }
@@ -54,6 +80,20 @@ class DownstreamClient {
     lastError = null;
 
     try {
+      if (entry.isBuiltinComputerUse) {
+        tools = computerUseToolDefinitions.map((tool) => Map<String, dynamic>.from(tool)).toList();
+        final client = ComputerUseClient();
+        _computerUse = client;
+        await client.start();
+        serverInfo = {
+          'name': computerUseMcpDisplayName,
+          'version': client.runtimePaths?.skyVersion ?? 'Codex runtime',
+          'description': computerUseMcpDescription,
+        };
+        state = DownstreamState.connected;
+        return;
+      }
+
       if (entry.isStdio) {
         await _startStdio();
       } else if (entry.isUrl) {
@@ -74,13 +114,17 @@ class DownstreamClient {
       state = DownstreamState.connected;
     } catch (error) {
       lastError = '$error';
-      state = DownstreamState.failed;
       await close();
+      state = DownstreamState.failed;
       rethrow;
     }
   }
 
   Future<List<Map<String, dynamic>>> refreshTools() async {
+    if (entry.isBuiltinComputerUse) {
+      tools = computerUseToolDefinitions.map((tool) => Map<String, dynamic>.from(tool)).toList();
+      return tools;
+    }
     final result = await _request('tools/list', const {}, timeoutMs: startupTimeoutMs);
     final rawTools = result['tools'];
     tools = rawTools is List ? rawTools.whereType<Map<String, dynamic>>().toList() : const [];
@@ -88,21 +132,36 @@ class DownstreamClient {
   }
 
   Future<Map<String, dynamic>> callTool(String toolName, Map<String, dynamic> arguments) {
+    if (entry.isBuiltinComputerUse) {
+      final client = _computerUse;
+      if (client == null) throw StateError('Computer Use is not connected');
+      return client.callTool(toolName, arguments, timeoutMs: toolTimeoutMs);
+    }
     return _request('tools/call', {
       'name': toolName,
       'arguments': arguments,
     }, timeoutMs: toolTimeoutMs);
   }
 
-  Future<Map<String, dynamic>> listResources() => _request('resources/list', const {});
+  Future<Map<String, dynamic>> listResources() {
+    if (entry.isBuiltinComputerUse) return Future.value({'resources': const []});
+    return _request('resources/list', const {});
+  }
 
   Future<Map<String, dynamic>> readResource(String uri) {
+    if (entry.isBuiltinComputerUse) {
+      throw UnsupportedError('Computer Use does not expose resources');
+    }
     return _request('resources/read', {'uri': uri});
   }
 
-  Future<Map<String, dynamic>> listPrompts() => _request('prompts/list', const {});
+  Future<Map<String, dynamic>> listPrompts() {
+    if (entry.isBuiltinComputerUse) return Future.value({'prompts': const []});
+    return _request('prompts/list', const {});
+  }
 
   Future<Map<String, dynamic>> getPrompt(String promptName, Map<String, dynamic> arguments) {
+    if (entry.isBuiltinComputerUse) throw UnsupportedError('Computer Use does not expose prompts');
     return _request('prompts/get', {'name': promptName, 'arguments': arguments});
   }
 
@@ -117,6 +176,10 @@ class DownstreamClient {
 
     await _stdoutSub?.cancel();
     _stdoutSub = null;
+
+    final computerUse = _computerUse;
+    _computerUse = null;
+    await computerUse?.close();
 
     final child = _child;
     _child = null;

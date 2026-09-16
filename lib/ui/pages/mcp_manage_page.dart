@@ -3,6 +3,7 @@ import 'package:collection/collection.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import '../../models/downstream_mcp_entry.dart';
 import '../../services/capability_manager.dart';
+import '../../services/computer_use_tools.dart';
 import '../../services/downstream_client.dart';
 import '../../stores/app_state.dart';
 import '../theme/app_theme.dart';
@@ -78,9 +79,11 @@ class _McpManagePageState extends State<McpManagePage> {
           client: widget.appState.capabilities.clientOf(mcp.name),
           onToggle: (value) => widget.appState.toggleMcp(mcp.name, value),
           onReconnect: () async {
-            AppToast.info(context, '正在重连 ${mcp.name}…');
+            AppToast.info(context, '正在重连 ${mcp.displayName}…');
             try {
               await widget.appState.reconnectMcp(mcp.name);
+              if (!context.mounted) return;
+              AppToast.success(context, '${mcp.displayName} 已重新连接');
             } catch (error) {
               if (!context.mounted) return;
               AppToast.error(context, '重连失败：$error');
@@ -157,8 +160,8 @@ class _McpManagePageState extends State<McpManagePage> {
 
     await AppDialog.show<void>(
       context: context,
-      title: entry.name,
-      description: 'MCP 连接与工具',
+      title: entry.displayName,
+      description: entry.isBuiltinComputerUse ? '内置 Windows 桌面控制 MCP' : 'MCP 连接与工具',
       maxWidth: 620,
       maxHeight: 620,
       content: StatefulBuilder(
@@ -378,12 +381,16 @@ class _McpSummaryPanel extends StatelessWidget {
       DownstreamState.closed => '已断开',
       _ => entry.enabled ? '等待连接' : '已关闭',
     };
-    final target = entry.isStdio
+    final target = entry.isBuiltinComputerUse
+        ? (client?.targetDescription ?? '自动发现 Codex Computer Use runtime')
+        : entry.isStdio
         ? ([entry.command ?? '', ...entry.args].where((part) => part.isNotEmpty).join(' '))
         : (entry.url ?? '');
     final serverInfo = client?.serverInfo;
     final serverName = '${serverInfo?['name'] ?? ''}'.trim();
     final serverVersion = '${serverInfo?['version'] ?? ''}'.trim();
+    final serverDescription =
+        client?.description ?? (entry.isBuiltinComputerUse ? computerUseMcpDescription : '');
 
     return Container(
       padding: const EdgeInsets.all(AppSpacing.md),
@@ -401,9 +408,17 @@ class _McpSummaryPanel extends StatelessWidget {
               const Gap(AppSpacing.sm),
               Text(stateText, style: AppTones.body(theme, size: 12)),
               const Gap(AppSpacing.sm),
-              AppTag(label: entry.isStdio ? 'STDIO' : 'HTTP'),
+              AppTag(
+                label: entry.isBuiltinComputerUse ? 'BUILT-IN' : (entry.isStdio ? 'STDIO' : 'HTTP'),
+              ),
               const Gap(AppSpacing.xs),
-              AppTag(label: entry.isCodexImport ? 'Codex 导入' : '手动添加'),
+              AppTag(
+                label: entry.isBuiltin
+                    ? '内置'
+                    : entry.isCodexImport
+                    ? 'Codex 导入'
+                    : '手动添加',
+              ),
               const Spacer(),
               if (serverName.isNotEmpty)
                 Text(
@@ -412,12 +427,20 @@ class _McpSummaryPanel extends StatelessWidget {
                 ),
             ],
           ),
+          if (serverDescription.trim().isNotEmpty) ...[
+            const Gap(AppSpacing.md),
+            Text(serverDescription, style: AppTones.muted(theme, size: 11)),
+          ],
           if (target.isNotEmpty) ...[
             const Gap(AppSpacing.md),
             Row(
               children: [
                 Icon(
-                  entry.isStdio ? BootstrapIcons.terminal : BootstrapIcons.link45deg,
+                  entry.isBuiltinComputerUse
+                      ? BootstrapIcons.display
+                      : entry.isStdio
+                      ? BootstrapIcons.terminal
+                      : BootstrapIcons.link45deg,
                   size: 12,
                   color: theme.colorScheme.mutedForeground,
                 ),
@@ -604,9 +627,11 @@ class _McpTile extends StatelessWidget {
           const Gap(AppSpacing.md),
           AppStatusDot(tone: tone, size: 7),
           const Gap(AppSpacing.sm),
-          Text(entry.name, style: AppTones.title(theme, size: 13)),
+          Text(entry.displayName, style: AppTones.title(theme, size: 13)),
           const Gap(AppSpacing.sm),
-          AppTag(label: entry.isStdio ? 'STDIO' : 'HTTP'),
+          AppTag(
+            label: entry.isBuiltinComputerUse ? 'BUILT-IN' : (entry.isStdio ? 'STDIO' : 'HTTP'),
+          ),
           const Spacer(),
           if (client != null && client!.tools.isNotEmpty) ...[
             AppStat(icon: BootstrapIcons.tools, value: '${client!.tools.length} 个工具'),
@@ -614,18 +639,22 @@ class _McpTile extends StatelessWidget {
           ],
           AppIconButton(
             icon: BootstrapIcons.arrowRepeat,
-            tooltip: '重新连接',
-            onPressed: entry.enabled ? onReconnect : null,
+            tooltip: state == DownstreamState.connecting ? '正在连接' : '重新连接',
+            onPressed: entry.enabled && state != DownstreamState.connecting ? onReconnect : null,
           ),
           const Gap(AppSpacing.sm),
-          AppIconButton(icon: BootstrapIcons.pencil, tooltip: '编辑', onPressed: onEdit),
-          const Gap(AppSpacing.sm),
-          AppIconButton(
-            icon: BootstrapIcons.trash,
-            tooltip: '删除',
-            color: theme.colorScheme.destructive,
-            onPressed: onDelete,
-          ),
+          if (entry.isBuiltin)
+            AppIconButton(icon: BootstrapIcons.lock, tooltip: '内置 MCP 不可编辑或删除', onPressed: null)
+          else ...[
+            AppIconButton(icon: BootstrapIcons.pencil, tooltip: '编辑', onPressed: onEdit),
+            const Gap(AppSpacing.sm),
+            AppIconButton(
+              icon: BootstrapIcons.trash,
+              tooltip: '删除',
+              color: theme.colorScheme.destructive,
+              onPressed: onDelete,
+            ),
+          ],
         ],
       ),
     );

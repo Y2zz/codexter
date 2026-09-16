@@ -69,7 +69,7 @@ https://mcp.example.com/{workspace-uuid}/mcp
 - **本地开发工具**：内置 `read`、`apply_patch`、`ls`、`grep`、`glob`、`code_explore`、`exec_command`、`write_stdin` 等工具。
 - **图片读取**：支持读取本地 PNG、JPEG、GIF、WebP，并自动压缩过大的图片后交给模型。
 - **Skills 管理**：支持从 Codex 导入 Skills，也可以手动创建、编辑、启停。
-- **下游 MCP**：支持导入或添加其他 MCP Server，并通过 `mcp_tools` / `mcp_call` 统一调用。
+- **下游 MCP**：支持导入或添加其他 MCP Server，并通过 `mcp_tools` / `mcp_call` 统一调用；Windows 上内置可开关的 `Computer Use`，可复用本机 Codex runtime 控制桌面应用。
 - **Cloudflare Tunnel**：统一管理公网 HTTPS 入口，无需手动维护 cloudflared 命令。
 - **实时日志**：查看工具调用、执行耗时、失败状态和运行中的命令进程。
 - **环境检测**：检查 Cloudflared、Tunnel、域名、本地服务、Git 和工作区路径等状态。

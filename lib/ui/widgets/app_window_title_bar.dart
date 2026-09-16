@@ -171,6 +171,10 @@ class _WindowMenuBar extends StatelessWidget {
             label: '帮助',
             items: (anchorContext) => [
               MenuButton(
+                child: const Text('GitHub'),
+                onPressed: (_) => unawaited(_openGithubProject(anchorContext)),
+              ),
+              MenuButton(
                 child: const Text('检查更新'),
                 onPressed: (_) {
                   Future<void>.microtask(() {
@@ -195,6 +199,13 @@ class _WindowMenuBar extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _openGithubProject(BuildContext context) async {
+    final opened = await appState.setupService.openUrl(appGithubUrl);
+    if (!opened && context.mounted) {
+      AppToast.error(context, '打开 GitHub 项目失败');
+    }
   }
 
   static Future<void> _openConfigDirectory(BuildContext context) async {

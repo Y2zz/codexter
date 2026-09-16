@@ -46,6 +46,9 @@ class GlobalConfig extends HiveObject {
   @HiveField(13)
   bool closeActionRemembered;
 
+  @HiveField(14)
+  bool computerUseEnabled;
+
   GlobalConfig({
     this.domain = '',
     this.host = '127.0.0.1',
@@ -61,6 +64,7 @@ class GlobalConfig extends HiveObject {
     this.notificationSound = true,
     this.sidebarWidth = 236,
     this.closeActionRemembered = false,
+    this.computerUseEnabled = false,
   });
 
   String get baseUrl {
@@ -94,6 +98,7 @@ class GlobalConfig extends HiveObject {
     bool? notificationSound,
     double? sidebarWidth,
     bool? closeActionRemembered,
+    bool? computerUseEnabled,
   }) {
     return GlobalConfig(
       domain: domain ?? this.domain,
@@ -110,6 +115,7 @@ class GlobalConfig extends HiveObject {
       notificationSound: notificationSound ?? this.notificationSound,
       sidebarWidth: sidebarWidth ?? this.sidebarWidth,
       closeActionRemembered: closeActionRemembered ?? this.closeActionRemembered,
+      computerUseEnabled: computerUseEnabled ?? this.computerUseEnabled,
     );
   }
 }
