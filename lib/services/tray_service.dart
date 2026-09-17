@@ -71,6 +71,7 @@ class TrayService with tray.TrayListener {
     final filename = Platform.isWindows ? 'codexter-tray.ico' : 'codexter-tray.png';
     final data = await rootBundle.load(asset);
     final directory = await getTemporaryDirectory();
+    await directory.create(recursive: true);
     final file = File(p.join(directory.path, filename));
     await file.writeAsBytes(
       data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
