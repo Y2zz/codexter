@@ -39,4 +39,3 @@ flutter:
   assets:
     - assets/brand/logo.png
     - assets/brand/tray_icon.ico
-    - assets/brand/tray_icon_template.png

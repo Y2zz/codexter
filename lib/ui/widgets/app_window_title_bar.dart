@@ -88,7 +88,6 @@ class _AppWindowTitleBarState extends State<AppWindowTitleBar> with WindowListen
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final showNativeTrafficLights = Platform.isMacOS;
     return Container(
       height: AppSpacing.windowTitleBarHeight,
       decoration: BoxDecoration(
@@ -106,33 +105,26 @@ class _AppWindowTitleBarState extends State<AppWindowTitleBar> with WindowListen
           ),
           Align(
             alignment: Alignment.centerLeft,
-            child: Padding(
-              // macOS：只留拖拽区给原生红黄绿；菜单走系统菜单栏，不在窗口内再画一份。
-              padding: EdgeInsets.only(left: showNativeTrafficLights ? 72 : 0),
-              child: showNativeTrafficLights
-                  ? const SizedBox.shrink()
-                  : _WindowMenuBar(appState: widget.appState),
+            child: _WindowMenuBar(appState: widget.appState),
+          ),
+          Align(
+            alignment: Alignment.centerRight,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _CaptionButton(kind: _CaptionKind.minimize, onPressed: windowManager.minimize),
+                _CaptionButton(
+                  kind: _maximized ? _CaptionKind.restore : _CaptionKind.maximize,
+                  onPressed: _toggleMaximize,
+                ),
+                _CaptionButton(
+                  kind: _CaptionKind.close,
+                  danger: true,
+                  onPressed: windowManager.close,
+                ),
+              ],
             ),
           ),
-          if (!showNativeTrafficLights)
-            Align(
-              alignment: Alignment.centerRight,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  _CaptionButton(kind: _CaptionKind.minimize, onPressed: windowManager.minimize),
-                  _CaptionButton(
-                    kind: _maximized ? _CaptionKind.restore : _CaptionKind.maximize,
-                    onPressed: _toggleMaximize,
-                  ),
-                  _CaptionButton(
-                    kind: _CaptionKind.close,
-                    danger: true,
-                    onPressed: windowManager.close,
-                  ),
-                ],
-              ),
-            ),
         ],
       ),
     );

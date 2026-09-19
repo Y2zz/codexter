@@ -11,6 +11,7 @@ import '../models/mcp_log_entry.dart';
 import '../models/summary_notice.dart';
 import '../models/skill_entry.dart';
 import '../models/workspace.dart';
+import '../platform/desktop_platform.dart';
 import '../services/capability_runtime.dart';
 import '../services/doctor_service.dart';
 import '../services/notification_service.dart';
@@ -128,7 +129,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     unawaited(capabilities.syncMcps(_mcps));
-    if (Platform.isWindows || Platform.isMacOS) {
+    if (desktopPlatform.supports(DesktopFeature.inAppUpdate)) {
       unawaited(_checkForUpdatesOnStartup());
     }
     // 已完成首次向导的环境由启动检测页负责启动服务，避免 UI 出现前后台静默失败。
@@ -422,8 +423,7 @@ class AppState extends ChangeNotifier {
     final entries = persisted
         .where((item) => item.name != DownstreamMcpEntry.builtinComputerUseName && !item.isBuiltin)
         .toList();
-    // Computer Use 依赖 Windows 桌面 runtime，其他平台不注入内置项。
-    if (Platform.isWindows) {
+    if (desktopPlatform.supports(DesktopFeature.builtinComputerUse)) {
       entries.add(DownstreamMcpEntry.builtinComputerUse(enabled: _config.computerUseEnabled));
     }
     _sortMcpList(entries);

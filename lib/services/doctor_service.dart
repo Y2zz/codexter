@@ -4,7 +4,6 @@ import 'dart:io';
 import '../models/global_config.dart';
 import '../models/workspace.dart';
 import '../utils/app_paths.dart';
-import '../utils/unix_path.dart';
 import 'setup_service.dart';
 import 'tunnel_error_classifier.dart';
 
@@ -151,9 +150,7 @@ class DoctorService {
     for (final bin in candidates) {
       if (!await File(bin).exists()) continue;
       try {
-        final result = await Process.run(bin, [
-          '--version',
-        ], environment: UnixPath.augmentedEnvironment());
+        final result = await Process.run(bin, ['--version']);
         if (result.exitCode == 0) {
           return DoctorCheck(
             title: 'Cloudflared',
@@ -346,9 +343,7 @@ class DoctorService {
 
   Future<DoctorCheck> _checkGit() async {
     try {
-      final result = await Process.run('git', [
-        '--version',
-      ], environment: UnixPath.augmentedEnvironment());
+      final result = await Process.run('git', ['--version']);
       if (result.exitCode == 0) {
         return DoctorCheck(
           title: 'Git',

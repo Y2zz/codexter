@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 
 import '../../app_info.dart';
+import '../../platform/desktop_platform.dart';
 import '../../services/update_service.dart';
 import '../../stores/app_state.dart';
 import '../theme/app_theme.dart';
@@ -15,6 +16,10 @@ class AppUpdateDialog {
   const AppUpdateDialog._();
 
   static Future<void> checkAndShow(BuildContext context, AppState appState) async {
+    if (!desktopPlatform.supports(DesktopFeature.inAppUpdate)) {
+      AppToast.info(context, '当前平台暂未提供应用内更新，请从源码重新构建。');
+      return;
+    }
     AppToast.info(context, '正在检查更新…');
     try {
       final result = await appState.checkForUpdates();
@@ -66,9 +71,7 @@ class AppUpdateDialog {
               Text('Codexter v${update.version}', style: AppTones.title(theme, size: 16)),
               const Gap(AppSpacing.sm),
               Text(
-                Platform.isMacOS
-                    ? '当前版本 v$currentVersion，下载完成后将打开更新包。请将应用拖到「应用程序」文件夹完成升级。'
-                    : '当前版本 v$currentVersion，下载完成后将打开安装程序，并关闭 Codexter。请按安装向导完成升级。',
+                '当前版本 v$currentVersion，下载完成后将打开安装程序，并关闭 Codexter。请按安装向导完成升级。',
                 style: AppTones.muted(theme, size: 12),
               ),
             ],
@@ -161,7 +164,7 @@ class _UpdateDownloadContentState extends State<_UpdateDownloadContent> {
       if (!mounted) return;
       setState(() {
         _progress = 1;
-        _status = Platform.isMacOS ? '校验完成，正在打开更新包…' : '校验完成，正在打开安装程序…';
+        _status = '校验完成，正在打开安装程序…';
       });
       await widget.service.launchInstaller(installer);
       await Future<void>.delayed(const Duration(milliseconds: 300));

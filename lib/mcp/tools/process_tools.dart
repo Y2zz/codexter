@@ -94,7 +94,7 @@ class ProcessTools {
     name: 'exec_command',
     title: 'Execute command',
     description:
-        'Run shell commands for tests, builds, git, package managers, adb, and other CLI operations. Do not use shell redirection or shell file IO helpers (for example Get-Content/Set-Content on Windows, or cat/tee redirects that rewrite files) to edit source/text files; use apply_patch instead. If still running after yield_time_ms, returns a session_id for write_stdin.',
+        'Run shell commands for tests, builds, git, package managers, adb, and other CLI operations. Do not use shell redirection, Get-Content/Set-Content, or similar commands to edit source/text files; use apply_patch instead. If still running after yield_time_ms, returns a session_id for write_stdin.',
     inputSchema: {
       'type': 'object',
       'properties': {

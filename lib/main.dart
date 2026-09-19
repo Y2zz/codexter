@@ -1,10 +1,10 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'app_info.dart';
+import 'platform/desktop_platform.dart';
 import 'services/tray_service.dart';
 import 'stores/app_state.dart';
 import 'ui/app_shell.dart';
@@ -12,27 +12,21 @@ import 'ui/pages/first_run_page.dart';
 import 'ui/pages/startup_check_page.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/widgets/app_window_title_bar.dart';
-import 'ui/widgets/app_about_dialog.dart';
-import 'ui/widgets/app_update_dialog.dart';
 import 'ui/widgets/close_window_dialog.dart';
-import 'ui/widgets/settings_dialog.dart';
-import 'utils/app_paths.dart';
 import 'utils/win_kill_job.dart';
-
-const _lifecycleChannel = MethodChannel('com.codexter/lifecycle');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   WinKillOnCloseJob.bindCurrentProcess();
   await windowManager.ensureInitialized();
   await windowManager.waitUntilReadyToShow(
-    WindowOptions(
-      size: const Size(1120, 720),
-      minimumSize: const Size(960, 640),
+    const WindowOptions(
+      size: Size(1120, 720),
+      minimumSize: Size(960, 640),
       title: appName,
       titleBarStyle: TitleBarStyle.hidden,
-      windowButtonVisibility: Platform.isMacOS,
-      backgroundColor: const Color(0x00000000),
+      windowButtonVisibility: false,
+      backgroundColor: Color(0x00000000),
     ),
     () async {
       await windowManager.show();
@@ -59,6 +53,7 @@ class CodexterApp extends StatefulWidget {
 /// 关窗前先停掉 cloudflared 与子进程，避免留下孤儿进程
 class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsBindingObserver {
   late final TrayService _trayService;
+  late final VoidCallback _detachPlatformLifecycle;
   final GlobalKey<NavigatorState> _navigatorKey = GlobalKey<NavigatorState>();
   bool _exiting = false;
   bool _closePromptOpen = false;
@@ -72,76 +67,16 @@ class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsB
     widget.appState.syncSystemTheme();
     _trayService = TrayService(onExitRequested: _exitApp);
     unawaited(_trayService.initialize());
-    _lifecycleChannel.setMethodCallHandler(_handleLifecycleCall);
+    _detachPlatformLifecycle = desktopPlatform.attachLifecycle(shutdown: widget.appState.shutdown);
   }
 
   @override
   void dispose() {
-    _lifecycleChannel.setMethodCallHandler(null);
+    _detachPlatformLifecycle();
     WidgetsBinding.instance.removeObserver(this);
     windowManager.removeListener(this);
     unawaited(_trayService.dispose());
     super.dispose();
-  }
-
-  Future<dynamic> _handleLifecycleCall(MethodCall call) async {
-    switch (call.method) {
-      case 'prepareQuit':
-        await _prepareQuit();
-        return null;
-      case 'reopen':
-        await _trayService.showWindow();
-        return null;
-      case 'showAbout':
-        await _showNativeMenuDialog((context) => AppAboutDialog.show(context, widget.appState));
-        return null;
-      case 'showSettings':
-        await _showNativeMenuDialog((context) => SettingsDialog.show(context, widget.appState));
-        return null;
-      case 'openConfigDirectory':
-        await _openConfigDirectory();
-        return null;
-      case 'toggleDarkMode':
-        await widget.appState.setThemeMode(!widget.appState.darkMode);
-        return null;
-      case 'openGithub':
-        await widget.appState.setupService.openUrl(appGithubUrl);
-        return null;
-      case 'checkForUpdates':
-        await _showNativeMenuDialog(
-          (context) => AppUpdateDialog.checkAndShow(context, widget.appState),
-        );
-        return null;
-      default:
-        throw MissingPluginException(call.method);
-    }
-  }
-
-  Future<void> _openConfigDirectory() async {
-    final path = await AppPaths.configDir;
-    try {
-      final result = await Process.run('open', [path]);
-      if (result.exitCode != 0) return;
-    } catch (_) {}
-  }
-
-  Future<void> _showNativeMenuDialog(Future<void> Function(BuildContext context) show) async {
-    await _trayService.showWindow();
-    final context = _navigatorKey.currentState?.overlay?.context ?? _navigatorKey.currentContext;
-    if (context == null || !context.mounted) return;
-    await show(context);
-  }
-
-  Future<void> _prepareQuit() async {
-    if (_exiting) return;
-    _exiting = true;
-    try {
-      await _trayService.dispose();
-      await widget.appState.shutdown();
-      await windowManager.setPreventClose(false);
-    } catch (_) {
-      // 仍允许原生 terminate，避免卡死在退出流程。
-    }
   }
 
   @override
@@ -153,12 +88,7 @@ class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsB
   Future<void> onWindowClose() async {
     if (_exiting || _closePromptOpen) return;
 
-    // macOS 的红色关闭按钮只关闭/隐藏当前主窗口，应用继续运行；
-    // 真正退出由 ⌘Q 或菜单栏“退出 Codexter”完成。
-    if (Platform.isMacOS) {
-      await windowManager.hide();
-      return;
-    }
+    if (await desktopPlatform.handleWindowClose()) return;
 
     // 当前关闭选择弹窗和“记住选择”仅用于 Windows。
     if (!Platform.isWindows) {
@@ -181,7 +111,7 @@ class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsB
     try {
       final navigatorContext =
           _navigatorKey.currentState?.overlay?.context ?? _navigatorKey.currentContext;
-      if (navigatorContext == null) return;
+      if (navigatorContext == null || !navigatorContext.mounted) return;
       final decision = await CloseWindowDialog.show(navigatorContext);
       if (decision == null) return;
       if (decision.remember) {
@@ -204,10 +134,11 @@ class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsB
 
   Future<void> _exitApp() async {
     if (_exiting) return;
-    await _prepareQuit();
-    if (Platform.isMacOS) {
-      exit(0);
-    }
+    if (await desktopPlatform.requestExit()) return;
+    _exiting = true;
+    await _trayService.dispose();
+    await widget.appState.shutdown();
+    await windowManager.setPreventClose(false);
     await windowManager.close();
   }
 

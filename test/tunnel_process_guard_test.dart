@@ -52,37 +52,6 @@ void main() {
     });
   });
 
-  group('TunnelProcessGuard Unix 命令行', () {
-    const unixConfig = '/Users/me/Library/Application Support/codexter/cloudflared.yml';
-
-    test('匹配 macOS cloudflared 参数', () {
-      const command =
-          '/Users/me/Library/Application Support/codexter/bin/cloudflared tunnel --config /Users/me/Library/Application Support/codexter/cloudflared.yml --protocol auto run abc';
-      expect(TunnelProcessGuard.isOwnedCommand(command, unixConfig), isTrue);
-    });
-
-    test('匹配 --config= 写法', () {
-      const command =
-          'cloudflared tunnel --config=/Users/me/Library/Application Support/codexter/cloudflared.yml run abc';
-      expect(TunnelProcessGuard.isOwnedCommand(command, unixConfig), isTrue);
-    });
-
-    test('不匹配其它配置文件', () {
-      const command =
-          '/opt/homebrew/bin/cloudflared tunnel --config /Users/me/.cloudflared/config.yml run other';
-      expect(TunnelProcessGuard.isOwnedCommand(command, unixConfig), isFalse);
-    });
-
-    test('parseOwnedPids 解析 ps 风格列表', () {
-      const listing = '''
-1122\t/Users/me/Library/Application Support/codexter/bin/cloudflared tunnel --config /Users/me/Library/Application Support/codexter/cloudflared.yml run abc
-3344\t/opt/homebrew/bin/cloudflared tunnel --config /Users/me/.cloudflared/config.yml run other
-5566\tcloudflared tunnel --config=/Users/me/Library/Application Support/codexter/cloudflared.yml --protocol auto run abc
-''';
-      expect(TunnelProcessGuard.parseOwnedPids(listing, unixConfig), [1122, 5566]);
-    });
-  });
-
   group('TunnelProcessGuard.parseOwnedPids', () {
     test('只收集属于本应用的 PID', () {
       const listing = '''

@@ -17,22 +17,9 @@ Codexter 将本地项目目录映射为独立的 MCP 地址，并统一提供文
 - `Codexter-x.x.x-Setup.exe`：安装版，推荐普通用户使用。
 - `Codexter-x.x.x-windows-x64.zip`：免安装版，解压后直接运行。
 
-当前正式发布以 **Windows x64** 为主，安装版支持应用内检查更新。
+当前提供 Windows x64 构建。安装版支持应用内检查更新，后续新版本可直接从 Codexter 中下载安装。
 
 > 当前安装包暂未配置 Windows 代码签名。如果 SmartScreen 出现提示，请确认安装包来自本仓库的 GitHub Releases。
-
-### macOS
-
-macOS 可从源码开发运行；CI 会构建 `.app` 压缩包（`Codexter-*-macos-*.zip`），并写入更新清单的 `macos` 字段。应用内可通过「检查更新」下载 zip 并用 Finder 打开。内置 Computer Use 目前仅 Windows。
-
-配置目录：
-
-```text
-~/Library/Application Support/codexter-dev   # Debug
-~/Library/Application Support/codexter       # Release
-```
-
-> 正式分发尚需 Developer ID 签名与公证；未签名包可能被 Gatekeeper 拦截。
 
 ## 快速开始
 
@@ -86,7 +73,7 @@ https://mcp.example.com/{workspace-uuid}/mcp
 - **Cloudflare Tunnel**：统一管理公网 HTTPS 入口，无需手动维护 cloudflared 命令。
 - **实时日志**：查看工具调用、执行耗时、失败状态和运行中的命令进程。
 - **环境检测**：检查 Cloudflared、Tunnel、域名、本地服务、Git 和工作区路径等状态。
-- **在线更新**：Windows / macOS 均可通过 `帮助 → 检查更新` 获取更新包（Windows 为 Setup.exe，macOS 为 zip）。
+- **在线更新**：通过 `帮助 → 检查更新` 获取并安装新版本。
 
 ## MCP 地址
 
@@ -110,15 +97,20 @@ https://mcp.example.com/{workspace-uuid}/mcp
 
 ```bash
 flutter pub get
-flutter run -d macos    # 或 windows / linux
+flutter run -d windows
 ```
 
-Debug / Release 使用独立配置目录：
+Debug 环境使用独立配置目录：
 
-| 平台 | Debug | Release |
-|------|-------|---------|
-| Windows | `%APPDATA%\codexter-dev` | `%APPDATA%\codexter` |
-| macOS | `~/Library/Application Support/codexter-dev` | `~/Library/Application Support/codexter` |
+```text
+%APPDATA%\codexter-dev
+```
+
+Release 环境使用：
+
+```text
+%APPDATA%\codexter
+```
 
 两者目录内部结构一致，可以直接复制配置进行开发测试。
 
@@ -133,18 +125,6 @@ Debug / Release 使用独立配置目录：
 ```text
 Codexter-x.x.x-Setup.exe
 Codexter-x.x.x-windows-x64.zip
-```
-
-### macOS 发布包
-
-```bash
-./scripts/build_macos.sh
-```
-
-产物：
-
-```text
-dist/Codexter-x.x.x-macos-arm64.zip   # 或 macos-x64
 ```
 
 推送与 `pubspec.yaml` 版本一致的 `v*` Tag 后，GitHub Actions 会自动完成测试、构建并创建 Release。

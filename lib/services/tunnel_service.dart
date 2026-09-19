@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../utils/path_guard.dart';
 import '../utils/rolling_buffer.dart';
-import '../utils/unix_path.dart';
 import '../utils/win_kill_job.dart';
 import 'tunnel_process_guard.dart';
 
@@ -90,11 +89,11 @@ class TunnelService extends ChangeNotifier {
       '4',
       'run',
       tunnelId,
-    ], environment: UnixPath.augmentedEnvironment());
+    ], environment: Platform.environment);
     final attached = WinKillOnCloseJob.assignPid(_process!.pid);
     if (attached || WinKillOnCloseJob.boundCurrentProcess) {
       _appendLog('---- cloudflared pid=${_process!.pid} will exit with app ----\n');
-    } else {
+    } else if (Platform.isWindows) {
       _appendLog('---- cloudflared pid=${_process!.pid} may survive if the app is killed ----\n');
     }
     _running = true;

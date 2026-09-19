@@ -46,24 +46,6 @@ void main() {
     });
   });
 
-  group('PathGuard Unix 风格路径', () {
-    final guard = PathGuard('/Users/me/Projects/demo');
-
-    test('相对路径解析在根目录内', () {
-      final resolved = guard.resolve('lib/main.dart');
-      expect(guard.isInsideProject(resolved), isTrue);
-      expect(resolved.replaceAll('\\', '/'), contains('/Users/me/Projects/demo'));
-    });
-
-    test('.. 越权被拦截', () {
-      expect(() => guard.safeResolve('../secret.txt'), throwsA(isA<PathEscapeError>()));
-    });
-
-    test('同前缀的兄弟目录不算在内', () {
-      expect(guard.isInsideProject('/Users/me/Projects/demo-evil/a.txt'), isFalse);
-    });
-  });
-
   group('TextDecode', () {
     test('UTF-8 字节正确解码', () {
       const bytes = [228, 189, 160, 229, 165, 189];

@@ -1,6 +1,6 @@
 platform :osx, '12.0'
 
-# CocoaPods analytics sends network stats synchronously affecting flutter build latency.
+# 禁用同步发送的 CocoaPods 统计，避免拖慢构建。
 ENV['COCOAPODS_DISABLE_STATS'] = 'true'
 
 project 'Runner', {

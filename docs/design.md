@@ -71,7 +71,7 @@ JSON-RPC 2.0 消息格式：
 ```
 Flutter 3.44.x (stable) + Dart 3.12
 当前环境: Flutter 3.44.9 已安装
-目标平台: Windows（正式分发 + 自动更新）、macOS（开发/CI 构建 zip，应用内可检查更新；正式公证签名另配）
+目标平台: Windows (主要), macOS
 ```
 
 ### 2.2 UI 框架: shadcn_flutter
@@ -851,9 +851,9 @@ codexter/
 ### Phase 7：完善和打包（1 天）
 
 - 剩余工具移植（webfetch, process, goals, skills, agents）
-- cloudflared 自动下载（对应 `managed-tools/install.ts`；macOS 解压 `.tgz`）
-- 打包 Windows exe / macOS `.app` zip（`scripts/build_windows.ps1`、`scripts/build_macos.sh`）
-- 集成测试；CI `windows-release` + `macos-release`
+- cloudflared 自动下载（对应 `managed-tools/install.ts`）
+- 打包 Windows exe / macOS app
+- 集成测试
 
 ---
 

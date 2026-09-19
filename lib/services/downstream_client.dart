@@ -4,7 +4,6 @@ import 'dart:io';
 import '../app_info.dart';
 import '../models/downstream_mcp_entry.dart';
 import '../utils/path_guard.dart';
-import '../utils/unix_path.dart';
 import 'computer_use_client.dart';
 import 'computer_use_tools.dart';
 
@@ -203,7 +202,7 @@ class DownstreamClient {
       command,
       entry.args,
       workingDirectory: entry.cwd,
-      environment: {...UnixPath.augmentedEnvironment(), ...entry.env},
+      environment: {...Platform.environment, ...entry.env},
     );
 
     _stdoutSub = _child!.stdout
