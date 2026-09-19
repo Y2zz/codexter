@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import '../models/process_info.dart';
 import '../utils/path_guard.dart';
 import '../utils/rolling_buffer.dart';
+import '../utils/unix_path.dart';
 
 const defaultMaxOutputChars = 40000;
 const maxToolBufferChars = 1000000;
@@ -104,13 +105,14 @@ class ProcessSessionManager extends ChangeNotifier {
       final shell = Platform.isWindows ? 'powershell.exe' : '/bin/bash';
       final shellArgs = Platform.isWindows
           ? ['-NoLogo', '-NonInteractive', '-Command', command]
-          : ['-c', command];
+          // set -m：尽量让命令处于独立作业，便于后续按进程组清理。
+          : ['-c', 'set -m; $command'];
 
       session.child = await Process.start(
         shell,
         shellArgs,
         workingDirectory: cwd,
-        environment: {...Platform.environment, 'NO_COLOR': '1'},
+        environment: {...UnixPath.augmentedEnvironment(), 'NO_COLOR': '1'},
       );
 
       session.child!.stdout.listen((data) => _append(session, TextDecode.bytes(data)));
@@ -251,9 +253,21 @@ class ProcessSessionManager extends ChangeNotifier {
   }
 
   void _signalProcess(ProcessSession session, ProcessSignal signal) {
+    final child = session.child;
+    if (child == null) return;
     try {
-      session.child?.kill(signal);
+      child.kill(signal);
     } catch (_) {}
+    // Unix：尽量清理 shell 拉起的孙进程，避免 npm/flutter 等残留。
+    if (!Platform.isWindows) {
+      try {
+        Process.killPid(-child.pid, signal);
+      } catch (_) {}
+      final name = signal == ProcessSignal.sigkill ? 'KILL' : 'TERM';
+      try {
+        Process.runSync('pkill', ['-$name', '-P', '${child.pid}']);
+      } catch (_) {}
+    }
   }
 
   ProcessSession _requireSession(int processId) {

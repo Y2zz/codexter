@@ -186,6 +186,12 @@ class _CreateWorkspaceDialogState extends State<CreateWorkspaceDialog> {
     }
   }
 
+  String get _projectPathPlaceholder {
+    if (Platform.isWindows) return r'C:\Projects\my-project';
+    if (Platform.isMacOS) return '/Users/you/Projects/my-project';
+    return '/home/you/Projects/my-project';
+  }
+
   void _refreshAgentsPreview() {
     final root = _pathController.text.trim();
     var body = '';
@@ -280,10 +286,10 @@ class _CreateWorkspaceDialogState extends State<CreateWorkspaceDialog> {
         AppField(
           label: '项目路径',
           controller: _pathController,
-          placeholder: r'C:\Projects\my-project',
+          placeholder: _projectPathPlaceholder,
           trailing: Button(
             style: ButtonStyle.outline(size: ButtonSize.normal),
-            onPressed: Platform.isWindows ? _pickDirectory : null,
+            onPressed: _pickDirectory,
             child: const Text('浏览'),
           ),
           hint: '文件读写和命令默认都限制在此目录范围内。',

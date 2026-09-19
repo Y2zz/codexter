@@ -147,3 +147,101 @@ jobs:
           } else {
             Write-Host "v1.0.2 release not found; nothing to remove"
           }
+
+  macos-release:
+    runs-on: macos-latest
+    needs: windows-release
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          full_version="$(sed -nE 's/^version:[[:space:]]*//p' pubspec.yaml | head -n1 | tr -d '\r')"
+          version="${full_version%%+*}"
+          expected_tag="v${version}"
+          if [[ "$RELEASE_TAG" != "$expected_tag" ]]; then
+            echo "Tag $RELEASE_TAG does not match pubspec version $full_version (expected $expected_tag)" >&2
+            exit 1
+          fi
+          echo "APP_VERSION=$version" >> "$GITHUB_ENV"
+          echo "Releasing Codexter $full_version (macOS)"
+
+      - name: Install Flutter
+        shell: bash
+        run: |
+          flutter_dir="${RUNNER_TEMP}/flutter"
+          git clone --depth 1 --branch "$FLUTTER_VERSION" https://github.com/flutter/flutter.git "$flutter_dir"
+          echo "$flutter_dir/bin" >> "$GITHUB_PATH"
+
+      - name: Flutter info
+        run: flutter --version
+
+      - name: Resolve dependencies
+        run: flutter pub get
+
+      - name: Analyze and test
+        run: |
+          dart format --output=none --set-exit-if-changed .
+          flutter analyze
+          flutter test
+
+      - name: Resolve release target
+        shell: bash
+        run: |
+          release_repo="${RELEASE_REPOSITORY:-$GITHUB_REPOSITORY}"
+          echo "TARGET_RELEASE_REPOSITORY=$release_repo" >> "$GITHUB_ENV"
+          echo "Release repository: $release_repo"
+
+      - name: Build macOS package
+        run: ./scripts/build_macos.sh --skip-analyze
+
+      - name: Download Windows update manifest
+        uses: actions/download-artifact@v4
+        with:
+          name: Codexter-${{ env.RELEASE_TAG }}-windows
+          path: dist-windows
+
+      - name: Patch update manifest with macOS assets
+        shell: bash
+        run: |
+          mkdir -p dist
+          if [[ -f dist-windows/latest.json ]]; then
+            cp dist-windows/latest.json dist/latest.json
+          fi
+          chmod +x ./scripts/patch_update_manifest_macos.sh
+          ./scripts/patch_update_manifest_macos.sh "$APP_VERSION" "$RELEASE_TAG" "$TARGET_RELEASE_REPOSITORY"
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Codexter-${{ env.RELEASE_TAG }}-macos
+          path: |
+            dist/Codexter-*-macos-*.zip
+            dist/latest.json
+          if-no-files-found: error
+
+      - name: Publish GitHub Release assets
+        shell: bash
+        env:
+          SOURCE_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EXTERNAL_RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+        run: |
+          export GH_TOKEN="${EXTERNAL_RELEASE_TOKEN:-$SOURCE_GITHUB_TOKEN}"
+          repo="$TARGET_RELEASE_REPOSITORY"
+          shopt -s nullglob
+          files=(dist/Codexter-"$APP_VERSION"-macos-*.zip dist/latest.json)
+          if [[ ${#files[@]} -lt 2 ]]; then
+            echo "Missing macOS zip or latest.json" >&2
+            exit 1
+          fi
+          if gh release view "$RELEASE_TAG" --repo "$repo" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" "${files[@]}" --clobber --repo "$repo"
+          else
+            gh release create "$RELEASE_TAG" "${files[@]}" \
+              --repo "$repo" \
+              --title "Codexter $APP_VERSION" \
+              --generate-notes
+          fi
