@@ -15,6 +15,7 @@ class AppUpdateInfo {
   final String tag;
   final String installerUrl;
   final String installerSha256;
+  final String platform;
   final String? releaseUrl;
   final DateTime? publishedAt;
 
@@ -23,18 +24,20 @@ class AppUpdateInfo {
     required this.tag,
     required this.installerUrl,
     required this.installerSha256,
+    required this.platform,
     this.releaseUrl,
     this.publishedAt,
   });
 
-  factory AppUpdateInfo.fromJson(Map<String, dynamic> json) {
-    final windows = json['windows'];
-    if (windows is! Map) {
-      throw const FormatException('更新清单缺少 Windows 安装包信息');
+  factory AppUpdateInfo.fromJson(Map<String, dynamic> json, {String? platformKey}) {
+    final key = platformKey ?? _defaultPlatformKey;
+    final block = json[key];
+    if (block is! Map) {
+      throw FormatException('更新清单缺少 $key 安装包信息');
     }
     final version = '${json['version'] ?? ''}'.trim();
-    final installerUrl = '${windows['installer_url'] ?? ''}'.trim();
-    final installerSha256 = '${windows['installer_sha256'] ?? ''}'.trim();
+    final installerUrl = '${block['installer_url'] ?? block['portable_url'] ?? ''}'.trim();
+    final installerSha256 = '${block['installer_sha256'] ?? block['portable_sha256'] ?? ''}'.trim();
     if (version.isEmpty || installerUrl.isEmpty || installerSha256.isEmpty) {
       throw const FormatException('更新清单字段不完整');
     }
@@ -43,11 +46,18 @@ class AppUpdateInfo {
       tag: '${json['tag'] ?? 'v$version'}'.trim(),
       installerUrl: installerUrl,
       installerSha256: installerSha256.toLowerCase(),
+      platform: key,
       releaseUrl: '${json['release_url'] ?? ''}'.trim().isEmpty
           ? null
           : '${json['release_url']}'.trim(),
       publishedAt: DateTime.tryParse('${json['published_at'] ?? ''}'),
     );
+  }
+
+  static String get _defaultPlatformKey {
+    if (Platform.isWindows) return 'windows';
+    if (Platform.isMacOS) return 'macos';
+    throw UnsupportedError('当前平台不支持应用内更新');
   }
 }
 
@@ -72,8 +82,8 @@ class AppUpdateService {
   }
 
   Future<File> downloadInstaller(AppUpdateInfo update, {UpdateProgress? onProgress}) async {
-    if (!Platform.isWindows) {
-      throw UnsupportedError('当前仅支持 Windows 自动安装更新');
+    if (!Platform.isWindows && !Platform.isMacOS) {
+      throw UnsupportedError('当前平台不支持自动下载更新');
     }
 
     final uri = Uri.parse(update.installerUrl);
@@ -87,7 +97,12 @@ class AppUpdateService {
       }
 
       final tempDir = await getTemporaryDirectory();
-      final file = File(p.join(tempDir.path, '$appName-${update.version}-Setup.exe'));
+      final filename = Platform.isWindows
+          ? '$appName-${update.version}-Setup.exe'
+          : p.basename(uri.path).isEmpty
+          ? '$appName-${update.version}-macos.zip'
+          : p.basename(uri.path);
+      final file = File(p.join(tempDir.path, filename));
       if (await file.exists()) await file.delete();
 
       final sink = file.openWrite();
@@ -116,11 +131,19 @@ class AppUpdateService {
   }
 
   Future<void> launchInstaller(File installer) async {
-    if (!Platform.isWindows) {
-      throw UnsupportedError('当前仅支持 Windows 自动安装更新');
+    if (Platform.isWindows) {
+      // 使用 Windows 官方 Job breakaway 机制，确保 Codexter 退出后 Setup 继续运行。
+      await WinKillOnCloseJob.launchBreakaway(installer.path);
+      return;
     }
-    // 使用 Windows 官方 Job breakaway 机制，确保 Codexter 退出后 Setup 继续运行。
-    await WinKillOnCloseJob.launchBreakaway(installer.path);
+    if (Platform.isMacOS) {
+      final result = await Process.run('open', [installer.path]);
+      if (result.exitCode != 0) {
+        throw ProcessException('open', [installer.path], '无法打开更新包');
+      }
+      return;
+    }
+    throw UnsupportedError('当前平台不支持自动安装更新');
   }
 
   Future<Map<String, dynamic>> _fetchJson(Uri uri) async {

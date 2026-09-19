@@ -42,15 +42,16 @@ class TunnelProcessGuard {
     if (targets.isEmpty) return 0;
 
     for (final pid in targets) {
-      Process.killPid(pid);
+      Process.killPid(pid, ProcessSignal.sigterm);
     }
 
     for (var attempt = 0; attempt < 10; attempt++) {
       await Future<void>.delayed(const Duration(milliseconds: 200));
       final left = (await listOwnedPids(configPath)).where((pid) => pid != keepPid).toList();
       if (left.isEmpty) break;
+      final signal = attempt >= 5 ? ProcessSignal.sigkill : ProcessSignal.sigterm;
       for (final pid in left) {
-        Process.killPid(pid);
+        Process.killPid(pid, signal);
       }
     }
     return targets.length;

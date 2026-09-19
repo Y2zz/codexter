@@ -128,7 +128,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     unawaited(capabilities.syncMcps(_mcps));
-    if (Platform.isWindows) {
+    if (Platform.isWindows || Platform.isMacOS) {
       unawaited(_checkForUpdatesOnStartup());
     }
     // 已完成首次向导的环境由启动检测页负责启动服务，避免 UI 出现前后台静默失败。
@@ -422,7 +422,10 @@ class AppState extends ChangeNotifier {
     final entries = persisted
         .where((item) => item.name != DownstreamMcpEntry.builtinComputerUseName && !item.isBuiltin)
         .toList();
-    entries.add(DownstreamMcpEntry.builtinComputerUse(enabled: _config.computerUseEnabled));
+    // Computer Use 依赖 Windows 桌面 runtime，其他平台不注入内置项。
+    if (Platform.isWindows) {
+      entries.add(DownstreamMcpEntry.builtinComputerUse(enabled: _config.computerUseEnabled));
+    }
     _sortMcpList(entries);
     return entries;
   }

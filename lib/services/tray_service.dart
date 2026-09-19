@@ -67,8 +67,10 @@ class TrayService with tray.TrayListener {
   }
 
   Future<String> _materializeIcon() async {
-    final asset = Platform.isWindows ? 'assets/brand/tray_icon.ico' : appLogoAsset;
-    final filename = Platform.isWindows ? 'codexter-tray.ico' : 'codexter-tray.png';
+    final asset = Platform.isWindows
+        ? 'assets/brand/tray_icon.ico'
+        : 'assets/brand/tray_icon_template.png';
+    final filename = Platform.isWindows ? 'codexter-tray.ico' : 'codexter-tray-template.png';
     final data = await rootBundle.load(asset);
     final directory = await getTemporaryDirectory();
     await directory.create(recursive: true);

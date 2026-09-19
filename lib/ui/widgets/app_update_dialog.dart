@@ -66,7 +66,9 @@ class AppUpdateDialog {
               Text('Codexter v${update.version}', style: AppTones.title(theme, size: 16)),
               const Gap(AppSpacing.sm),
               Text(
-                '当前版本 v$currentVersion，下载完成后将打开安装程序，并关闭 Codexter。请按安装向导完成升级。',
+                Platform.isMacOS
+                    ? '当前版本 v$currentVersion，下载完成后将打开更新包。请将应用拖到「应用程序」文件夹完成升级。'
+                    : '当前版本 v$currentVersion，下载完成后将打开安装程序，并关闭 Codexter。请按安装向导完成升级。',
                 style: AppTones.muted(theme, size: 12),
               ),
             ],
@@ -159,7 +161,7 @@ class _UpdateDownloadContentState extends State<_UpdateDownloadContent> {
       if (!mounted) return;
       setState(() {
         _progress = 1;
-        _status = '校验完成，正在打开安装程序…';
+        _status = Platform.isMacOS ? '校验完成，正在打开更新包…' : '校验完成，正在打开安装程序…';
       });
       await widget.service.launchInstaller(installer);
       await Future<void>.delayed(const Duration(milliseconds: 300));

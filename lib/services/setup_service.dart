@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:ffi';
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import '../models/global_config.dart';
 import '../utils/app_paths.dart';
 import '../utils/path_guard.dart';
+import '../utils/unix_path.dart';
 import 'tunnel_service.dart';
 
 const cloudflaredVersion = '2026.7.2';
@@ -72,7 +74,9 @@ class SetupService {
     }
 
     try {
-      final result = await Process.run('cloudflared', ['--version']);
+      final result = await Process.run('cloudflared', [
+        '--version',
+      ], environment: UnixPath.augmentedEnvironment());
       if (result.exitCode == 0) return 'cloudflared';
     } catch (_) {}
     return null;
@@ -80,7 +84,12 @@ class SetupService {
 
   Future<String> probeVersion(String bin) async {
     try {
-      final result = await Process.run(bin, ['--version'], stdoutEncoding: null);
+      final result = await Process.run(
+        bin,
+        ['--version'],
+        stdoutEncoding: null,
+        environment: UnixPath.augmentedEnvironment(),
+      );
       return TextDecode.bytes(result.stdout).trim();
     } catch (_) {
       return '';
@@ -90,6 +99,7 @@ class SetupService {
   Future<void> downloadCloudflared({void Function(DownloadProgress)? onProgress}) async {
     final targetPath = await cloudflaredPath;
     final client = HttpClient()..connectionTimeout = const Duration(seconds: 30);
+    Directory? tempDir;
 
     try {
       final request = await client.getUrl(Uri.parse(_downloadUrl));
@@ -100,7 +110,11 @@ class SetupService {
 
       final total = response.contentLength;
       var received = 0;
-      final sink = File(targetPath).openWrite();
+      final needsExtract = githubAssetName.endsWith('.tgz');
+      tempDir = await Directory.systemTemp.createTemp('codexter-cloudflared-');
+      final downloadPath = needsExtract ? p.join(tempDir.path, githubAssetName) : targetPath;
+
+      final sink = File(downloadPath).openWrite();
       await for (final chunk in response) {
         sink.add(chunk);
         received += chunk.length;
@@ -108,12 +122,19 @@ class SetupService {
       }
       await sink.close();
 
+      if (needsExtract) {
+        await _extractCloudflaredTgz(archivePath: downloadPath, targetPath: targetPath);
+      }
+
       if (!Platform.isWindows) {
         final chmod = await Process.run('chmod', ['+x', targetPath]);
         if (chmod.exitCode != 0) throw Exception('设置执行权限失败');
+        await Process.run('xattr', ['-d', 'com.apple.quarantine', targetPath]);
       }
 
-      final probe = await Process.run(targetPath, ['--version']);
+      final probe = await Process.run(targetPath, [
+        '--version',
+      ], environment: UnixPath.augmentedEnvironment());
       if (probe.exitCode != 0) throw Exception('下载的文件无法运行');
     } catch (_) {
       final file = File(targetPath);
@@ -125,6 +146,45 @@ class SetupService {
       rethrow;
     } finally {
       client.close();
+      if (tempDir != null) {
+        try {
+          await tempDir.delete(recursive: true);
+        } catch (_) {}
+      }
+    }
+  }
+
+  Future<void> _extractCloudflaredTgz({
+    required String archivePath,
+    required String targetPath,
+  }) async {
+    final extractDir = await Directory.systemTemp.createTemp('codexter-cloudflared-extract-');
+    try {
+      final result = await Process.run('tar', ['-xzf', archivePath, '-C', extractDir.path]);
+      if (result.exitCode != 0) {
+        throw Exception('解压 cloudflared 失败：${result.stderr}'.trim());
+      }
+
+      File? binary;
+      await for (final entity in extractDir.list(recursive: true, followLinks: false)) {
+        if (entity is! File) continue;
+        if (p.basename(entity.path) != 'cloudflared') continue;
+        binary = entity;
+        break;
+      }
+      if (binary == null) {
+        throw Exception('压缩包中未找到 cloudflared 可执行文件');
+      }
+
+      await Directory(p.dirname(targetPath)).create(recursive: true);
+      if (await File(targetPath).exists()) {
+        await File(targetPath).delete();
+      }
+      await binary.copy(targetPath);
+    } finally {
+      try {
+        await extractDir.delete(recursive: true);
+      } catch (_) {}
     }
   }
 
@@ -464,9 +524,23 @@ class SetupService {
   }
 
   bool get _isArm64 {
-    if (Platform.version.contains('arm64')) return true;
-    final arch = Platform.environment['PROCESSOR_ARCHITECTURE']?.toLowerCase() ?? '';
-    return arch.contains('arm');
+    final abi = Abi.current();
+    if (abi == Abi.macosArm64 || abi == Abi.linuxArm64 || abi == Abi.windowsArm64) {
+      return true;
+    }
+    if (abi == Abi.macosX64 || abi == Abi.linuxX64 || abi == Abi.windowsX64) {
+      return false;
+    }
+    if (Platform.version.contains('arm64') || Platform.version.contains('aarch64')) {
+      return true;
+    }
+    try {
+      final result = Process.runSync('uname', ['-m']);
+      final machine = result.stdout.toString().trim().toLowerCase();
+      return machine.contains('arm') || machine.contains('aarch64');
+    } catch (_) {
+      return false;
+    }
   }
 
   String _homeDir() {

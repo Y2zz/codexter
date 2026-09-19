@@ -125,7 +125,7 @@ class ServerInstructions {
       '1. Use ls / glob / code_explore / grep to locate relevant code efficiently.',
       '2. Read the relevant files before changing them.',
       '3. Use apply_patch for all source/text file changes; compose related edits there and avoid rewriting unrelated content.',
-      '4. Use exec_command for tests, builds, git, package managers, adb, and other installed CLI tools. Do not edit source/text files through shell redirection or Get-Content/Set-Content.',
+      '4. Use exec_command for tests, builds, git, package managers, adb, and other installed CLI tools. Do not edit source/text files through shell redirection or shell file IO helpers (Windows Get-Content/Set-Content, or Unix cat/tee rewrites).',
       '5. If exec_command returns session_id, continue with write_stdin; send \\u0003 to stop an interactive/long-running command when appropriate.',
       '6. Use skill_read only when a listed Skill is relevant; use mcp_tools before mcp_call when downstream capabilities are unknown.',
       '7. When all work for the current user message is complete, call summary exactly once as the final MCP tool call. Do not call summary earlier, do not call it after each subtask, and do not call any MCP tool after it in the same user turn.',

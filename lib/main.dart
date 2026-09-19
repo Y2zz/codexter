@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'app_info.dart';
@@ -11,21 +12,27 @@ import 'ui/pages/first_run_page.dart';
 import 'ui/pages/startup_check_page.dart';
 import 'ui/theme/app_theme.dart';
 import 'ui/widgets/app_window_title_bar.dart';
+import 'ui/widgets/app_about_dialog.dart';
+import 'ui/widgets/app_update_dialog.dart';
 import 'ui/widgets/close_window_dialog.dart';
+import 'ui/widgets/settings_dialog.dart';
+import 'utils/app_paths.dart';
 import 'utils/win_kill_job.dart';
+
+const _lifecycleChannel = MethodChannel('com.codexter/lifecycle');
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   WinKillOnCloseJob.bindCurrentProcess();
   await windowManager.ensureInitialized();
   await windowManager.waitUntilReadyToShow(
-    const WindowOptions(
-      size: Size(1120, 720),
-      minimumSize: Size(960, 640),
+    WindowOptions(
+      size: const Size(1120, 720),
+      minimumSize: const Size(960, 640),
       title: appName,
       titleBarStyle: TitleBarStyle.hidden,
-      windowButtonVisibility: false,
-      backgroundColor: Color(0x00000000),
+      windowButtonVisibility: Platform.isMacOS,
+      backgroundColor: const Color(0x00000000),
     ),
     () async {
       await windowManager.show();
@@ -65,14 +72,76 @@ class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsB
     widget.appState.syncSystemTheme();
     _trayService = TrayService(onExitRequested: _exitApp);
     unawaited(_trayService.initialize());
+    _lifecycleChannel.setMethodCallHandler(_handleLifecycleCall);
   }
 
   @override
   void dispose() {
+    _lifecycleChannel.setMethodCallHandler(null);
     WidgetsBinding.instance.removeObserver(this);
     windowManager.removeListener(this);
     unawaited(_trayService.dispose());
     super.dispose();
+  }
+
+  Future<dynamic> _handleLifecycleCall(MethodCall call) async {
+    switch (call.method) {
+      case 'prepareQuit':
+        await _prepareQuit();
+        return null;
+      case 'reopen':
+        await _trayService.showWindow();
+        return null;
+      case 'showAbout':
+        await _showNativeMenuDialog((context) => AppAboutDialog.show(context, widget.appState));
+        return null;
+      case 'showSettings':
+        await _showNativeMenuDialog((context) => SettingsDialog.show(context, widget.appState));
+        return null;
+      case 'openConfigDirectory':
+        await _openConfigDirectory();
+        return null;
+      case 'toggleDarkMode':
+        await widget.appState.setThemeMode(!widget.appState.darkMode);
+        return null;
+      case 'openGithub':
+        await widget.appState.setupService.openUrl(appGithubUrl);
+        return null;
+      case 'checkForUpdates':
+        await _showNativeMenuDialog(
+          (context) => AppUpdateDialog.checkAndShow(context, widget.appState),
+        );
+        return null;
+      default:
+        throw MissingPluginException(call.method);
+    }
+  }
+
+  Future<void> _openConfigDirectory() async {
+    final path = await AppPaths.configDir;
+    try {
+      final result = await Process.run('open', [path]);
+      if (result.exitCode != 0) return;
+    } catch (_) {}
+  }
+
+  Future<void> _showNativeMenuDialog(Future<void> Function(BuildContext context) show) async {
+    await _trayService.showWindow();
+    final context = _navigatorKey.currentState?.overlay?.context ?? _navigatorKey.currentContext;
+    if (context == null || !context.mounted) return;
+    await show(context);
+  }
+
+  Future<void> _prepareQuit() async {
+    if (_exiting) return;
+    _exiting = true;
+    try {
+      await _trayService.dispose();
+      await widget.appState.shutdown();
+      await windowManager.setPreventClose(false);
+    } catch (_) {
+      // 仍允许原生 terminate，避免卡死在退出流程。
+    }
   }
 
   @override
@@ -135,10 +204,10 @@ class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsB
 
   Future<void> _exitApp() async {
     if (_exiting) return;
-    _exiting = true;
-    await _trayService.dispose();
-    await widget.appState.shutdown();
-    await windowManager.setPreventClose(false);
+    await _prepareQuit();
+    if (Platform.isMacOS) {
+      exit(0);
+    }
     await windowManager.close();
   }
 
