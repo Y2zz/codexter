@@ -58,7 +58,20 @@ class _MacosWindowFrameState extends State<MacosWindowFrame> {
       }
       return PlatformMenuBar(
         menus: _menus!,
-        child: SizedBox.expand(child: widget.child),
+        child: SizedBox.expand(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // 横跨侧栏和内容区，与页面标题下方的分割线共用边框色。
+              Container(
+                key: const ValueKey('macos-titlebar-divider'),
+                height: 1,
+                color: theme.colorScheme.border,
+              ),
+              Expanded(child: widget.child),
+            ],
+          ),
+        ),
       );
     },
   );
