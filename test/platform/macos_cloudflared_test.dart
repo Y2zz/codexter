@@ -31,8 +31,14 @@ void main() {
     Future<File> archive(List<String> names) async {
       final staging = await root.createTemp('archive-');
       final file = File(p.join(staging.path, 'bundle.tgz'));
-      final result = await Process.run('tar', ['-czf', file.path, '-C', input.path, ...names]);
-      expect(result.exitCode, 0, reason: '${result.stderr}');
+      // 中文路径交给 workingDirectory；归档参数使用无盘符的相对路径，兼容 BSD/GNU tar。
+      final archivePath = p.relative(file.path, from: input.path).replaceAll('\\', '/');
+      final result = await Process.run('tar', [
+        '-czf',
+        archivePath,
+        ...names,
+      ], workingDirectory: input.path);
+      expect(result.exitCode, 0, reason: '创建测试归档失败：${result.stderr}');
       return file;
     }
 
@@ -67,6 +73,22 @@ void main() {
       final binary = await MacosCloudflared.extractArchive(file.path);
       expect(await binary.readAsString(), '新版本');
       expect(File(p.join(file.parent.path, 'extra.txt')).existsSync(), isFalse);
+    });
+
+    test('相对归档路径正常解压，且不改变全局工作目录', () async {
+      await File(p.join(input.path, 'cloudflared')).writeAsString('新版本');
+      final file = await archive(['cloudflared']);
+      final currentDirectory = Directory.current.path;
+      // 系统临时目录可能在另一盘符，因此在项目缓存内另建目录，确保传入的真是相对路径。
+      final local = await Directory('.dart_tool').createTemp('codexter 相对路径 ');
+      addTearDown(() => local.delete(recursive: true));
+      final copy = await file.copy(p.join(local.path, 'bundle.tgz'));
+      final archivePath = p.relative(copy.absolute.path, from: currentDirectory);
+      expect(p.isRelative(archivePath), isTrue);
+      final binary = await MacosCloudflared.extractArchive(archivePath);
+      expect(await binary.readAsString(), '新版本');
+      expect(p.equals(binary.parent.path, copy.parent.absolute.path), isTrue);
+      expect(Directory.current.path, currentDirectory);
     });
 
     test('缺少目标文件时明确失败', () async {

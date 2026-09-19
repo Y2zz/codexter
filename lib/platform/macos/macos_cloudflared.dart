@@ -62,14 +62,15 @@ class MacosCloudflared {
 
   /// 只提取官方包中的 cloudflared 条目，并拒绝符号链接、目录及空文件。
   static Future<File> extractArchive(String archivePath) async {
-    final directory = File(archivePath).parent;
+    final archive = File(archivePath).absolute;
+    final directory = archive.parent;
+    // 由系统设置工作目录，tar 只接收文件名，避免 Windows 盘符被视为远程地址，
+    // 也避免不同 tar 实现对中文绝对路径参数的编码差异。不修改进程的全局目录。
     final result = await Process.run('tar', [
       '-xzf',
-      archivePath,
-      '-C',
-      directory.path,
+      p.basename(archive.path),
       'cloudflared',
-    ]);
+    ], workingDirectory: directory.path);
     if (result.exitCode != 0) {
       throw FormatException('解压 cloudflared 失败：${result.stderr}');
     }
