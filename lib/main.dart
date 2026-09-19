@@ -5,13 +5,13 @@ import 'package:shadcn_flutter/shadcn_flutter.dart';
 import 'package:window_manager/window_manager.dart';
 import 'app_info.dart';
 import 'platform/desktop_platform.dart';
+import 'platform/desktop_window.dart';
 import 'services/tray_service.dart';
 import 'stores/app_state.dart';
 import 'ui/app_shell.dart';
 import 'ui/pages/first_run_page.dart';
 import 'ui/pages/startup_check_page.dart';
 import 'ui/theme/app_theme.dart';
-import 'ui/widgets/app_window_title_bar.dart';
 import 'ui/widgets/close_window_dialog.dart';
 import 'utils/win_kill_job.dart';
 
@@ -19,20 +19,10 @@ Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   WinKillOnCloseJob.bindCurrentProcess();
   await windowManager.ensureInitialized();
-  await windowManager.waitUntilReadyToShow(
-    const WindowOptions(
-      size: Size(1120, 720),
-      minimumSize: Size(960, 640),
-      title: appName,
-      titleBarStyle: TitleBarStyle.hidden,
-      windowButtonVisibility: false,
-      backgroundColor: Color(0x00000000),
-    ),
-    () async {
-      await windowManager.show();
-      await windowManager.focus();
-    },
-  );
+  await windowManager.waitUntilReadyToShow(desktopWindowOptionsFor(desktopPlatform), () async {
+    await windowManager.show();
+    await windowManager.focus();
+  });
   await windowManager.setPreventClose(true);
 
   final appState = AppState();
@@ -153,7 +143,7 @@ class _CodexterAppState extends State<CodexterApp> with WindowListener, WidgetsB
           title: appName,
           theme: widget.appState.darkMode ? AppTheme.dark : AppTheme.light,
           home: AppSwitchTheme(
-            child: AppWindowFrame(
+            child: DesktopWindowFrame(
               appState: widget.appState,
               child: ToastLayer(
                 child: widget.appState.isFirstRun

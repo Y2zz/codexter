@@ -4,7 +4,7 @@
 
 Windows 是主开发平台。共享业务保留一份，Mac 差异独立维护；不为支持 Mac 复制整个 AppState、SetupService、MCP 服务或 UI。比例是减少原文件改动的方向，不通过增加无用代码凑到 90%。
 
-共享业务只导入 `lib/platform/desktop_platform.dart`。该入口按 `Platform.operatingSystem` 选择适配器；不要用 `dart.library.io` 判断 Windows，因为 macOS 也支持 dart:io。构造适配器没有原生副作用，只有选中的实现才执行钩子。此处是运行行为隔离，不是让另一平台的 Dart 源码完全免于编译或静态分析。
+共享业务通过 `lib/platform/desktop_platform.dart` 访问能力，窗口启动及容器通过 `lib/platform/desktop_window.dart` 分流。该入口按 `Platform.operatingSystem` 选择适配器；不要用 `dart.library.io` 判断 Windows，因为 macOS 也支持 dart:io。构造适配器没有原生副作用，只有选中的实现才执行钩子。此处是运行行为隔离，不是让另一平台的 Dart 源码完全免于编译或静态分析。
 
 ## 文件职责
 
@@ -12,8 +12,10 @@ Windows 是主开发平台。共享业务保留一份，Mac 差异独立维护�
 lib/platform/
   desktop_platform.dart          # 唯一的平台选择入口
   desktop_adapter.dart           # 能力枚举、默认关闭和不接管的钩子
+  desktop_window.dart            # 系统/自绘标题栏配置及窗口容器分流
   windows/windows_adapter.dart   # 显式启用 Windows 能力，沿用原业务
   macos/macos_adapter.dart        # Mac 能力、窗口和托盘接入
+  macos/macos_window_frame.dart   # 顶部原生菜单、快捷键和菜单操作
   macos/macos_lifecycle.dart      # Flutter 退出请求、去重和失败处理
   macos/macos_cloudflared.dart    # Mac 架构选择、tgz 安装事务
 macos/Runner/MacOSIntegration.swift  # Flutter 启动前补 PATH、Dock 重开
@@ -33,7 +35,9 @@ CocoaPods 接入、Xcode 文件注册和 entitlements 属于 Mac 原生工程配
 
 ## 本轮范围
 
-保留的 Mac 能力是源码开发运行、首次 cloudflared 安装、目录选择、托盘、关闭后隐藏、Dock 恢复，以及正常退出时调用现有服务清理。内置 Computer Use 和应用内更新均未在 Mac 开放；菜单、关于对话框共用现有实现。
+保留的 Mac 能力是源码开发运行、首次 cloudflared 安装、目录选择、托盘、关闭后隐藏、Dock 恢复，以及正常退出时调用现有服务清理。内置 Computer Use 和应用内更新均未在 Mac 开放；关于和设置对话框复用现有实现。Mac 使用系统标题栏、红黄绿按钮，以及 Flutter PlatformMenuBar 提交到 AppKit 的顶部原生菜单（不是窗口内模拟菜单）。Windows 继续使用原来的 AppWindowFrame。
+
+原生菜单提供文件、编辑、视图、窗口和帮助；应用菜单保留系统服务、隐藏和退出。关闭窗口与 ⌘W 继续走窗口关闭事件，隐藏后后台服务继续运行；退出与 ⌘Q 走现有 Flutter 生命周期清理，不直接 exit。菜单打开关于或设置前先恢复并聚焦主窗口，防止弹窗藏在后台。窗口样式在 main 启动时设置，更新后必须完全停止并重新运行，不能只热重载。菜单描述按主题缓存，普通日志更新不会反复重建系统菜单。
 
 PATH 在创建 FlutterViewController 之前设置，保留用户原有顺序并追加缺失的 Homebrew 目录；不改命令会话、下游 MCP 和 Tunnel 的进程启动方式。
 
@@ -63,3 +67,4 @@ Windows 本地可以执行 `flutter test test/platform`，验证平台分流、�
 - Dart 条件导入：https://dart.dev/tools/pub/create-packages#conditionally-importing-and-exporting-library-files
 - Flutter 退出回调：https://api.flutter.dev/flutter/widgets/WidgetsBindingObserver/didRequestAppExit.html
 - Flutter 退出请求：https://api.flutter.dev/flutter/services/ServicesBinding/exitApplication.html
+- Flutter 原生菜单：https://api.flutter.dev/flutter/widgets/PlatformMenuBar-class.html

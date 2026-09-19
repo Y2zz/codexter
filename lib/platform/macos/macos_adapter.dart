@@ -19,6 +19,9 @@ class MacosAdapter extends DesktopAdapter {
   bool supports(DesktopFeature feature) => const {DesktopFeature.directoryPicker}.contains(feature);
 
   @override
+  bool get usesNativeWindowChrome => true;
+
+  @override
   String get workspacePathHint => '/Users/you/Projects/my-project';
 
   @override

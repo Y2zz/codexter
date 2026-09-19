@@ -12,6 +12,9 @@ class DesktopAdapter {
 
   bool supports(DesktopFeature feature) => false;
 
+  /// 默认沿用自绘标题栏；原生窗口与菜单由对应平台显式接管。
+  bool get usesNativeWindowChrome => false;
+
   String get workspacePathHint => r'C:\Projects\my-project';
 
   String? get cloudflaredAssetName => null;
