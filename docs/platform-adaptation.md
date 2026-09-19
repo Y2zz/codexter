@@ -16,9 +16,10 @@ lib/platform/
   windows/windows_adapter.dart   # 显式启用 Windows 能力，沿用原业务
   macos/macos_adapter.dart        # Mac 能力、窗口和托盘接入
   macos/macos_window_frame.dart   # 顶部原生菜单、快捷键和菜单操作
+  macos/macos_window_appearance.dart # 当前窗口外观的去重与串行同步
   macos/macos_lifecycle.dart      # Flutter 退出请求、去重和失败处理
   macos/macos_cloudflared.dart    # Mac 架构选择、tgz 安装事务
-macos/Runner/MacOSIntegration.swift  # Flutter 启动前补 PATH、Dock 重开
+macos/Runner/MacOSIntegration.swift  # Flutter 启动前补 PATH、Dock 重开、原生窗口外观
 ```
 
 布尔异步钩子返回 `false` 表示没有接管，调用方继续原实现。Mac 已开始操作却失败时必须抛错，不能返回 false 后执行 Windows 路径。不要在共享入口导入 Mac/Windows 具体实现目录；边界测试会阻止这种依赖扩散。
@@ -39,6 +40,8 @@ CocoaPods 接入、Xcode 文件注册和 entitlements 属于 Mac 原生工程配
 
 原生菜单提供文件、编辑、视图、窗口和帮助；应用菜单保留系统服务、隐藏和退出。关闭窗口与 ⌘W 继续走窗口关闭事件，隐藏后后台服务继续运行；退出与 ⌘Q 走现有 Flutter 生命周期清理，不直接 exit。菜单打开关于或设置前先恢复并聚焦主窗口，防止弹窗藏在后台。窗口样式在 main 启动时设置，更新后必须完全停止并重新运行，不能只热重载。菜单描述按主题缓存，普通日志更新不会反复重建系统菜单。
 
+标题栏与侧栏使用同一套 `AppTones.surfaceSunken` 配色，不在 Swift 硬编码第二套主题。Mac 独立外观通道把当前深浅色和不透明背景同步给 NSWindow，原生端使用 Aqua/Dark Aqua 和透明标题栏材质；保留系统标题、红黄绿按钮、拖动和内容安全区域，不启用 fullSizeContentView，也不修改 NSApp 或系统外观。首次显示、应用内切换与跟随系统的主题变化都从 AppState 获取最终主题；日志等无关更新去重，快速切换按顺序落地。修改原生通道后必须完全退出并重新编译运行，热重载不会更新 Swift 实现。
+
 PATH 在创建 FlutterViewController 之前设置，保留用户原有顺序并追加缺失的 Homebrew 目录；不改命令会话、下游 MCP 和 Tunnel 的进程启动方式。
 
 退出复用 Flutter 生命周期，不新增原生退出通道。失败/超时取消退出；超时不会取消底层 Future，因此重试复用仍在运行的清理任务，避免并发清理。强制结束进程、断电等情况不会可靠触发正常退出回调。本轮未重写原有 Unix 进程树清理，不能承诺任意脱离父进程的孙进程都会退出。
@@ -48,6 +51,8 @@ Mac 安装只在私有暂存目录内操作，解压并验证可执行文件后�
 原 Release 工作流、更新清单、Windows 安装器和 Windows Job 实现不变。本轮不提供 Mac 自动发布、自动升级、签名或公证。
 
 ## 开发与验证
+
+根目录 analysis_options.yaml 显式排除 build、windows、macos、linux 下的产物与插件副本，保留 flutter_lints 和格式规则。`lib/platform/macos/` 与 `test/` 不在排除范围；原生 Swift/C++ 的正确性仍由平台编译验证。应用启动流程不负责改写分析配置；若 IDE/构建后配置仍发生变化，需要结合 Mac 本机工具版本及运行日志定位实际写入者，不能把它视为已确认的 Flutter 自动迁移。
 
 工程最低 Mac 部署目标为 12.0；使用与 Windows CI 一致的 Flutter 3.44.9、现有依赖锁文件，安装 Xcode 和 CocoaPods 后执行：
 

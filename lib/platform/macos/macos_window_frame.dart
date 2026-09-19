@@ -7,10 +7,12 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../app_info.dart';
 import '../../stores/app_state.dart';
+import '../../ui/theme/app_theme.dart';
 import '../../ui/widgets/app_about_dialog.dart';
 import '../../ui/widgets/app_dialog.dart';
 import '../../ui/widgets/settings_dialog.dart';
 import '../../utils/app_paths.dart';
+import 'macos_window_appearance.dart';
 
 /// 菜单交给 AppKit 绘制；内容区不再占用自绘标题栏的高度。
 class MacosWindowFrame extends StatefulWidget {
@@ -24,6 +26,7 @@ class MacosWindowFrame extends StatefulWidget {
 }
 
 class _MacosWindowFrameState extends State<MacosWindowFrame> {
+  final _appearance = MacosWindowAppearance();
   List<PlatformMenuItem>? _menus;
   bool? _menuDarkMode;
   bool _dialogOpen = false;
@@ -35,10 +38,19 @@ class _MacosWindowFrameState extends State<MacosWindowFrame> {
   }
 
   @override
+  void dispose() {
+    _appearance.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: widget.appState,
     builder: (context, _) {
       final darkMode = widget.appState.darkMode;
+      final theme = darkMode ? AppTheme.dark : AppTheme.light;
+      // 标题栏与侧栏共用配色；首次启动、手动切换及跟随系统的主题变化均走同一入口。
+      unawaited(_appearance.update(darkMode: darkMode, background: AppTones.surfaceSunken(theme)));
       // 日志和进程状态频繁通知时，不重建系统菜单、打断正在展开的菜单。
       if (_menus == null || _menuDarkMode != darkMode) {
         _menuDarkMode = darkMode;

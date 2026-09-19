@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:codexter/platform/desktop_platform.dart';
 import 'package:codexter/platform/desktop_window.dart';
 import 'package:codexter/platform/macos/macos_window_frame.dart';
+import 'package:codexter/platform/macos/macos_window_appearance.dart';
+import 'package:codexter/ui/theme/app_theme.dart';
 import 'package:codexter/stores/app_state.dart';
 import 'package:codexter/ui/widgets/app_window_title_bar.dart';
 import 'package:flutter/services.dart';
@@ -40,6 +42,7 @@ void main() {
   const windowChannel = MethodChannel('window_manager');
   final menuCalls = <MethodCall>[];
   final windowCalls = <String>[];
+  final appearanceCalls = <MethodCall>[];
   late _MenuAppState appState;
   var minimized = true;
 
@@ -47,6 +50,13 @@ void main() {
     appState = _MenuAppState();
     menuCalls.clear();
     windowCalls.clear();
+    appearanceCalls.clear();
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(MacosWindowAppearance.channel, (
+      call,
+    ) async {
+      appearanceCalls.add(call);
+      return null;
+    });
     minimized = true;
     binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.menu, (call) async {
       menuCalls.add(call);
@@ -71,6 +81,7 @@ void main() {
   tearDown(() {
     binding.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.menu, null);
     binding.defaultBinaryMessenger.setMockMethodCallHandler(windowChannel, null);
+    binding.defaultBinaryMessenger.setMockMethodCallHandler(MacosWindowAppearance.channel, null);
     appState.dispose();
   });
 
@@ -119,6 +130,7 @@ void main() {
     expect(find.text('帮助'), findsOneWidget);
     expect(find.byType(PlatformMenuBar), findsNothing);
     expect(menuCalls, isEmpty);
+    expect(appearanceCalls, isEmpty);
     await tester.pumpWidget(const SizedBox.shrink());
   }, skip: !Platform.isWindows);
 
@@ -163,6 +175,41 @@ void main() {
     expect(appState.darkMode, isTrue);
     expect(item(tester, '切换为浅色模式').onSelected, isNotNull);
     expect(menuCalls.length, greaterThan(writes));
+    await tester.pumpWidget(const SizedBox.shrink());
+  }, variant: macOS);
+
+  testWidgets('Mac 首次渲染同步标题栏底色，主题切换同步外观，日志刷新不重复发送', (tester) async {
+    await pumpFrame(tester);
+    expect(appearanceCalls, hasLength(1));
+    expect(appearanceCalls.single.method, 'setAppearance');
+    expect(appearanceCalls.single.arguments, {
+      'dark': false,
+      'background': AppTones.surfaceSunken(AppTheme.light).toARGB32(),
+    });
+    for (var i = 0; i < 5; i++) {
+      appState.logChanged();
+      await tester.pump();
+    }
+    expect(appearanceCalls, hasLength(1));
+    await appState.setThemeMode(true);
+    await tester.pumpAndSettle();
+    expect(appearanceCalls, hasLength(2));
+    expect(appearanceCalls.last.arguments, {
+      'dark': true,
+      'background': AppTones.surfaceSunken(AppTheme.dark).toARGB32(),
+    });
+    await appState.setThemeMode(false);
+    await tester.pumpAndSettle();
+    expect(appearanceCalls, hasLength(3));
+    expect(appearanceCalls.last.arguments['dark'], false);
+    await tester.pumpWidget(const SizedBox.shrink());
+  }, variant: macOS);
+
+  testWidgets('启动前已有深色偏好时直接同步深色标题栏', (tester) async {
+    await appState.setThemeMode(true);
+    await pumpFrame(tester);
+    expect(appearanceCalls, hasLength(1));
+    expect(appearanceCalls.single.arguments['dark'], true);
     await tester.pumpWidget(const SizedBox.shrink());
   }, variant: macOS);
 
