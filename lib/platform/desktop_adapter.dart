@@ -1,5 +1,5 @@
 /// 平台能力必须显式开放；新增 Windows 功能不会自动在其他平台启用。
-enum DesktopFeature { directoryPicker, builtinComputerUse, inAppUpdate }
+enum DesktopFeature { directoryPicker, builtinComputerUse, updateCheck, inAppUpdate }
 
 typedef BinaryDownloadProgress = void Function(int received, int total);
 

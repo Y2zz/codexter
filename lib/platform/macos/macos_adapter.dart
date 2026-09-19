@@ -16,7 +16,8 @@ class MacosAdapter extends DesktopAdapter {
   const MacosAdapter();
 
   @override
-  bool supports(DesktopFeature feature) => const {DesktopFeature.directoryPicker}.contains(feature);
+  bool supports(DesktopFeature feature) =>
+      const {DesktopFeature.directoryPicker, DesktopFeature.updateCheck}.contains(feature);
 
   @override
   bool get usesNativeWindowChrome => true;

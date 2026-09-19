@@ -140,10 +140,10 @@ void main() {
     expect(bar.menus.map((menu) => menu.label), ['Codexter', '文件', '编辑', '视图', '窗口', '帮助']);
     expect(find.byType(AppWindowTitleBar), findsNothing);
     expect(find.text('文件'), findsNothing);
-    expect(tester.getTopLeft(find.byKey(const ValueKey('content'))).dy, 0);
+    expect(tester.getTopLeft(find.byKey(const ValueKey('content'))).dy, 1);
     expect(menuCalls.where((call) => call.method == 'Menu.setMenus'), isNotEmpty);
     expect(jsonEncode(menuCalls.last.arguments), contains('打开配置目录'));
-    expect(item(tester, '检查更新（暂不支持）').onSelected, isNull);
+    expect(item(tester, '检查更新').onSelected, isNotNull);
     final nativeTypes = _flatten(
       bar.menus,
     ).whereType<PlatformProvidedMenuItem>().map((item) => item.type).toSet();

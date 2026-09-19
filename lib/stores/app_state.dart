@@ -129,7 +129,7 @@ class AppState extends ChangeNotifier {
     notifyListeners();
 
     unawaited(capabilities.syncMcps(_mcps));
-    if (desktopPlatform.supports(DesktopFeature.inAppUpdate)) {
+    if (desktopPlatform.supports(DesktopFeature.updateCheck)) {
       unawaited(_checkForUpdatesOnStartup());
     }
     // 已完成首次向导的环境由启动检测页负责启动服务，避免 UI 出现前后台静默失败。

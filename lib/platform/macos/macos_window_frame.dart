@@ -10,6 +10,7 @@ import '../../stores/app_state.dart';
 import '../../ui/theme/app_theme.dart';
 import '../../ui/widgets/app_about_dialog.dart';
 import '../../ui/widgets/app_dialog.dart';
+import '../../ui/widgets/app_update_dialog.dart';
 import '../../ui/widgets/settings_dialog.dart';
 import '../../utils/app_paths.dart';
 import 'macos_window_appearance.dart';
@@ -178,8 +179,10 @@ class _MacosWindowFrameState extends State<MacosWindowFrame> {
       label: '帮助',
       menus: [
         _command('GitHub', _openGithub),
-        // Mac 尚未开放应用内更新，保留明确的禁用入口，不误用 Windows 安装器。
-        const PlatformMenuItem(label: '检查更新（暂不支持）'),
+        _command(
+          '检查更新',
+          () => _showDialog((context) => AppUpdateDialog.checkAndShow(context, widget.appState)),
+        ),
         PlatformMenuItemGroup(members: [_command('关于 $appName', _showAbout)]),
       ],
     ),

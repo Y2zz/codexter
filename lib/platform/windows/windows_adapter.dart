@@ -8,6 +8,7 @@ class WindowsAdapter extends DesktopAdapter {
   bool supports(DesktopFeature feature) => const {
     DesktopFeature.directoryPicker,
     DesktopFeature.builtinComputerUse,
+    DesktopFeature.updateCheck,
     DesktopFeature.inAppUpdate,
   }.contains(feature);
 }

@@ -36,7 +36,7 @@ CocoaPods 接入、Xcode 文件注册和 entitlements 属于 Mac 原生工程配
 
 ## 本轮范围
 
-保留的 Mac 能力是源码开发运行、首次 cloudflared 安装、目录选择、托盘、关闭后隐藏、Dock 恢复，以及正常退出时调用现有服务清理。内置 Computer Use 和应用内更新均未在 Mac 开放；关于和设置对话框复用现有实现。Mac 使用系统标题栏、红黄绿按钮，以及 Flutter PlatformMenuBar 提交到 AppKit 的顶部原生菜单（不是窗口内模拟菜单）。Windows 继续使用原来的 AppWindowFrame。
+保留的 Mac 能力是源码开发运行、首次 cloudflared 安装、目录选择、托盘、关闭后隐藏、Dock 恢复，以及正常退出时调用现有服务清理。内置 Computer Use 和自动安装更新未在 Mac 开放；Mac 支持更新检查，并复用弹窗跳转 GitHub 手动下载；关于和设置对话框复用现有实现。Mac 使用系统标题栏、红黄绿按钮，以及 Flutter PlatformMenuBar 提交到 AppKit 的顶部原生菜单（不是窗口内模拟菜单）。Windows 继续使用原来的 AppWindowFrame。
 
 原生菜单提供文件、编辑、视图、窗口和帮助；应用菜单保留系统服务、隐藏和退出。关闭窗口与 ⌘W 继续走窗口关闭事件，隐藏后后台服务继续运行；退出与 ⌘Q 走现有 Flutter 生命周期清理，不直接 exit。菜单打开关于或设置前先恢复并聚焦主窗口，防止弹窗藏在后台。窗口样式在 main 启动时设置，更新后必须完全停止并重新运行，不能只热重载。菜单描述按主题缓存，普通日志更新不会反复重建系统菜单。
 
@@ -48,9 +48,11 @@ PATH 在创建 FlutterViewController 之前设置，保留用户原有顺序并�
 
 Mac 安装只在私有暂存目录内操作，解压并验证可执行文件后才替换旧程序；下载、解压、校验失败保留旧程序。不执行 xattr、不关闭 Gatekeeper。当前仍依赖固定官方 HTTPS 下载地址及运行探测，尚未新增独立的发行签名/供应链校验机制。
 
-原 Release 工作流、更新清单、Windows 安装器和 Windows Job 实现不变。本轮不提供 Mac 自动发布、自动升级、签名或公证。
+Release 工作流现已统一构建并发布 Windows 与 MacOS 包，详情见 [发布说明](releasing.md)。`updateCheck` 与 `inAppUpdate` 分开授权：Mac 只启用检查，不调用 Windows 安装器；Windows Job 实现不变。Mac 自动发布包仍使用本机临时签名，不包含 Developer ID 分发签名或公证。
 
 ## 开发与验证
+
+`window_manager` 的 Swift Package Manager 提示目前是回退到 CocoaPods 的警告。`Failed to foreground app; open returned 1` 表示 Flutter 置前失败，不等于构建失败；窗口可正常操作时可继续测试。`Lost connection to device` 则表示调试断连，非主动退出时需通过 `flutter run -d macos -v` 和系统“控制台 → 崩溃报告”排查，不能一概忽略。相关说明见 [Flutter SwiftPM](https://docs.flutter.dev/packages-and-plugins/swift-package-manager/for-app-developers)。
 
 根目录 analysis_options.yaml 显式排除 build、windows、macos、linux 下的产物与插件副本，保留 flutter_lints 和格式规则。`lib/platform/macos/` 与 `test/` 不在排除范围；原生 Swift/C++ 的正确性仍由平台编译验证。应用启动流程不负责改写分析配置；若 IDE/构建后配置仍发生变化，需要结合 Mac 本机工具版本及运行日志定位实际写入者，不能把它视为已确认的 Flutter 自动迁移。
 
